@@ -406,6 +406,7 @@ function toggleHideCompleted() {
 
 function exportMarkdown() {
   const title = State.items.length > 0 ? (State.items[0].text || '無題') : '無題';
+  const date  = new Date().toISOString().slice(0, 10);
   const PRI_LABEL = { high: '高', mid: '中', low: '低' };
   let md = '';
   for (const item of State.items) {
@@ -426,11 +427,12 @@ function exportMarkdown() {
       md += `${indent}- ${check} ${item.text}${metaStr}\n`;
     }
   }
-  downloadBlob(md, `${title}.md`, 'text/markdown');
+  downloadBlob(md, `${title}_${date}.md`, 'text/markdown');
 }
 
 function exportCSV() {
   const title = State.items.length > 0 ? (State.items[0].text || '無題') : '無題';
+  const date  = new Date().toISOString().slice(0, 10);
   const PRI_LABEL = { high: '高', mid: '中', low: '低' };
   const header = ['テキスト', 'ステータス', '優先度', '期限', 'セクション'];
   const tasks  = State.items
@@ -456,7 +458,7 @@ function exportCSV() {
 
   const bom = '\uFEFF'; // Excel文字化け防止
   downloadBlob(bom + [header.join(','), ...rows].join('\n'),
-    `${title}_tasks.csv`, 'text/csv');
+    `${title}_tasks_${date}.csv`, 'text/csv');
 }
 
 function downloadBlob(content, filename, type) {
