@@ -36,6 +36,11 @@
     <div id="editor-panel">
       <div id="editor-toolbar">
         <span class="toolbar-hint">Enter: 追加　Tab: 子項目　Shift+Tab: 戻す　•••: タスク設定</span>
+        <div class="toolbar-btns">
+          <button id="btn-hide-completed" class="toolbar-action-btn">完了を非表示</button>
+          <button id="btn-export-md" class="toolbar-action-btn" title="Markdownで書き出し">MD出力</button>
+          <button id="btn-export-csv" class="toolbar-action-btn" title="タスクをCSVで書き出し">CSV出力</button>
+        </div>
       </div>
       <div id="outline-editor"></div>
       <div id="add-item-footer">
@@ -131,6 +136,6 @@
     </div>
   </div>
 
-  <script src="/static/mindmap.js?v=3"></script>
+  <script src="/static/mindmap.js?v=4"></script>
 </body>
 </html>

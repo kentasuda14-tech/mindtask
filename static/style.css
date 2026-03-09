@@ -109,11 +109,38 @@ html, body {
 }
 
 #editor-toolbar {
-  padding: 6px 14px;
+  padding: 4px 10px;
   background: #F8FAFC;
   border-bottom: 1px solid #E2E8F0;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
+
+.toolbar-btns {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.toolbar-action-btn {
+  padding: 3px 8px;
+  border: 1px solid #E2E8F0;
+  border-radius: 5px;
+  background: white;
+  color: #64748B;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.toolbar-action-btn:hover { border-color: #93C5FD; color: #1D4ED8; }
+.toolbar-action-btn.active { background: #EFF6FF; border-color: #93C5FD; color: #1D4ED8; font-weight: 600; }
+
+/* 完了アイテム非表示 */
+#outline-editor.hide-completed .outline-item.is-done { display: none; }
 
 .toolbar-hint { font-size: 11px; color: #94A3B8; }
 
@@ -616,7 +643,8 @@ html, body {
 
   .mob-hidden { display: none !important; }
 
-  #editor-toolbar { display: none; }
+  /* スマホ: ツールバーは表示するがヒントテキストを隠す */
+  .toolbar-hint { display: none; }
 
   .item-input { font-size: 16px; padding: 7px 6px; }
   [data-level="0"] > .item-input { font-size: 18px; }

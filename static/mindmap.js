@@ -20,6 +20,7 @@ const State = {
   _saveTimer: null,
   taskSort: 'priority',
   taskSortDir: 'asc',
+  hideCompleted: false,
 };
 
 // ===== 定数 =====
@@ -388,6 +389,82 @@ function toggleSortBy(sortKey) {
     }
   });
   renderTaskList();
+}
+
+// ===== 完了非表示トグル =====
+
+function toggleHideCompleted() {
+  State.hideCompleted = !State.hideCompleted;
+  document.getElementById('outline-editor')
+    .classList.toggle('hide-completed', State.hideCompleted);
+  const btn = document.getElementById('btn-hide-completed');
+  btn.textContent = State.hideCompleted ? '完了を表示' : '完了を非表示';
+  btn.classList.toggle('active', State.hideCompleted);
+}
+
+// ===== エクスポート =====
+
+function exportMarkdown() {
+  const title = State.items.length > 0 ? (State.items[0].text || '無題') : '無題';
+  const PRI_LABEL = { high: '高', mid: '中', low: '低' };
+  let md = '';
+  for (const item of State.items) {
+    const indent = '  '.repeat(Math.max(0, item.level - 1));
+    if (!item.isTask) {
+      if (item.level === 0)      md += `# ${item.text}\n\n`;
+      else if (item.level === 1) md += `\n## ${item.text}\n\n`;
+      else                       md += `${indent}- ${item.text}\n`;
+    } else {
+      const status  = normalizeStatus(item);
+      const isDone  = status === 'done' || status === 'cancelled';
+      const check   = isDone ? '[x]' : '[ ]';
+      const meta    = [];
+      if (status && status !== 'todo')  meta.push(STATUS_LABELS[status]);
+      if (item.priority)                meta.push(`優先度:${PRI_LABEL[item.priority]}`);
+      if (item.deadline)                meta.push(`期限:${item.deadline}`);
+      const metaStr = meta.length ? `  _(${meta.join(' / ')})_` : '';
+      md += `${indent}- ${check} ${item.text}${metaStr}\n`;
+    }
+  }
+  downloadBlob(md, `${title}.md`, 'text/markdown');
+}
+
+function exportCSV() {
+  const title = State.items.length > 0 ? (State.items[0].text || '無題') : '無題';
+  const PRI_LABEL = { high: '高', mid: '中', low: '低' };
+  const header = ['テキスト', 'ステータス', '優先度', '期限', 'セクション'];
+  const tasks  = State.items
+    .map((item, idx) => ({ ...item, _idx: idx }))
+    .filter(item => item.isTask);
+
+  const rows = tasks.map(item => {
+    const status  = normalizeStatus(item);
+    let section = '';
+    for (let i = item._idx - 1; i >= 0; i--) {
+      if (State.items[i].level < item.level && !State.items[i].isTask) {
+        section = State.items[i].text; break;
+      }
+    }
+    return [
+      item.text,
+      STATUS_LABELS[status] || '',
+      PRI_LABEL[item.priority] || '',
+      item.deadline || '',
+      section,
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+  });
+
+  const bom = '\uFEFF'; // Excel文字化け防止
+  downloadBlob(bom + [header.join(','), ...rows].join('\n'),
+    `${title}_tasks.csv`, 'text/csv');
+}
+
+function downloadBlob(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ===== items → ツリー変換 =====
@@ -864,6 +941,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('doc-select').addEventListener('change', e => loadDoc(e.target.value));
   document.getElementById('btn-new-doc').addEventListener('click', createNewDoc);
+
+  document.getElementById('btn-hide-completed').addEventListener('click', toggleHideCompleted);
+  document.getElementById('btn-export-md').addEventListener('click', exportMarkdown);
+  document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
 
   initOutlineEditor();
   initPropsPopup();
