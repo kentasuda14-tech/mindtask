@@ -616,7 +616,9 @@ html, body {
   border: 1px solid #E2E8F0;
   border-radius: 12px;
   padding: 4px 0;
-  min-width: 210px;
+  min-width: 230px;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: 0 8px 32px rgba(0,0,0,0.15);
 }
 #props-popup.hidden { display: none; }
@@ -661,6 +663,137 @@ html, body {
 }
 .pri-btn:hover { background: #F1F5F9; border-color: #CBD5E1; }
 .pri-btn.active { background: #EFF6FF; border-color: #93C5FD; font-weight: 600; }
+
+/* ===== ドラッグハンドル（アウトライン） ===== */
+.item-drag-handle {
+  opacity: 0;
+  width: 18px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  cursor: grab;
+  color: #CBD5E1;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s, color 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+.outline-item:hover .item-drag-handle,
+.outline-item:focus-within .item-drag-handle { opacity: 1; }
+.item-drag-handle:hover { color: #64748B; }
+.item-drag-handle:active { cursor: grabbing; }
+
+/* アウトラインドラッグゴースト */
+.outline-drag-ghost {
+  position: fixed;
+  z-index: 9999;
+  background: #1E293B;
+  color: white;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  opacity: 0.9;
+}
+
+/* ドロップ位置インジケーター */
+.outline-drop-indicator {
+  position: fixed;
+  z-index: 9998;
+  height: 2px;
+  background: #3B82F6;
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+/* ===== マーカー（左ボーダー） ===== */
+.outline-item.marker-red    { border-left: 3px solid #EF4444; }
+.outline-item.marker-yellow { border-left: 3px solid #F59E0B; }
+.outline-item.marker-green  { border-left: 3px solid #10B981; }
+.outline-item.marker-blue   { border-left: 3px solid #3B82F6; }
+
+.task-row.marker-red    { border-left: 4px solid #EF4444; }
+.task-row.marker-yellow { border-left: 4px solid #F59E0B; }
+.task-row.marker-green  { border-left: 4px solid #10B981; }
+.task-row.marker-blue   { border-left: 4px solid #3B82F6; }
+
+/* スタンプ絵文字 */
+.item-stamp { font-size: 13px; line-height: 1; flex-shrink: 0; }
+.task-stamp { font-size: 14px; line-height: 1; flex-shrink: 0; }
+
+/* ===== マーカー・スタンプボタン（ポップアップ） ===== */
+.marker-color-buttons,
+.marker-stamp-buttons {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.marker-color-btn {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #E2E8F0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  color: #94A3B8;
+}
+.marker-color-btn[data-color="red"]    { background: #FEE2E2; }
+.marker-color-btn[data-color="yellow"] { background: #FEF9C3; }
+.marker-color-btn[data-color="green"]  { background: #DCFCE7; }
+.marker-color-btn[data-color="blue"]   { background: #DBEAFE; }
+.marker-color-btn:hover { transform: scale(1.15); }
+.marker-color-btn.active { border-color: #1E293B; transform: scale(1.1); }
+
+.marker-stamp-btn {
+  padding: 3px 7px;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  background: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.marker-stamp-btn[data-stamp=""] { font-size: 11px; color: #94A3B8; }
+.marker-stamp-btn:hover { background: #F1F5F9; border-color: #CBD5E1; }
+.marker-stamp-btn.active { background: #EFF6FF; border-color: #93C5FD; }
+
+/* ===== クイックフィルター（タスクビュー） ===== */
+.quick-filter-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.quick-filter-btn {
+  padding: 4px 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 999px;
+  background: white;
+  color: #64748B;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.quick-filter-btn:hover { border-color: #93C5FD; color: #1D4ED8; }
+.quick-filter-btn.active { background: #3B82F6; color: white; border-color: #3B82F6; font-weight: 600; }
 
 /* ===== スクロールバー ===== */
 ::-webkit-scrollbar { width: 5px; }

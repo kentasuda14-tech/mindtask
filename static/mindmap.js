@@ -23,6 +23,7 @@ const State = {
   hideCompleted: false,
   scale: 1,
   mapLayout: 'tree', // 'tree' | 'radial'
+  quickFilter: '',   // '' | 'today' | 'tomorrow' | 'week'
 };
 
 // ===== 定数 =====
@@ -84,6 +85,8 @@ function renderOutline(focusIdx, cursorPos) {
     const isDone  = isTask && (status === 'done' || status === 'cancelled');
     const isOverdue = isTask && !isDone && item.deadline && item.deadline < today;
     const indentW = item.level * INDENT_PX;
+    const markerColorClass = item.markerColor ? `marker-${item.markerColor}` : '';
+    const stampSpan = item.markerStamp ? `<span class="item-stamp">${item.markerStamp}</span>` : '';
 
     let bulletChar, bulletClass;
     if (isTask) {
@@ -109,15 +112,16 @@ function renderOutline(focusIdx, cursorPos) {
       </div>`;
 
     return `
-      <div class="outline-item ${isTask ? 'is-task' : ''} ${isDone ? 'is-done' : ''} ${isOverdue ? 'is-overdue' : ''}"
+      <div class="outline-item ${isTask ? 'is-task' : ''} ${isDone ? 'is-done' : ''} ${isOverdue ? 'is-overdue' : ''} ${markerColorClass}"
            data-idx="${idx}" data-level="${item.level}">
+        <button class="item-drag-handle" data-idx="${idx}" tabindex="-1" title="ドラッグで並び替え">⠿</button>
         <div class="item-indent" style="width:${indentW}px"></div>
         <button class="item-bullet ${bulletClass}" data-idx="${idx}"
                 title="${isTask ? (isDone ? 'クリックで未完了に戻す' : 'クリックで完了') : ''}">${bulletChar}</button>
         <input class="item-input ${isDone ? 'done-text' : ''}" type="text"
                value="${esc(item.text)}" data-idx="${idx}"
                placeholder="${item.level === 0 ? 'タイトル' : 'アイテムを入力…'}">
-        <div class="item-meta">${statusBadge}${priDot}${dlSpan}</div>
+        <div class="item-meta">${stampSpan}${statusBadge}${priDot}${dlSpan}</div>
         ${indentBtns}
         <button class="item-props-btn" data-idx="${idx}" title="タスク設定・優先度・期限">•••</button>
       </div>`;
@@ -155,6 +159,7 @@ function initOutlineEditor() {
       const newItem = {
         id: genId(), text: val.slice(cur), level: item.level,
         isTask: false, done: false, status: null, deadline: null, priority: null,
+        markerColor: null, markerStamp: null,
       };
       State.items.splice(idx + 1, 0, newItem);
       renderOutline(idx + 1, 0);
@@ -258,6 +263,7 @@ function initOutlineEditor() {
     const newItem = {
       id: genId(), text: '', level: last ? last.level : 0,
       isTask: false, done: false, status: null, deadline: null, priority: null,
+      markerColor: null, markerStamp: null,
     };
     State.items.push(newItem);
     renderOutline(State.items.length - 1);
@@ -277,12 +283,16 @@ function openPropsPopup(btnEl, idx) {
   document.getElementById('pop-deadline').value  = item.deadline || '';
   document.querySelectorAll('.pri-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.p === (item.priority || '')));
+  document.querySelectorAll('.marker-color-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.color === (item.markerColor || '')));
+  document.querySelectorAll('.marker-stamp-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.stamp === (item.markerStamp || '')));
   document.getElementById('pop-task-extra').classList.toggle('hidden', !item.isTask);
 
   const rect = btnEl.getBoundingClientRect();
-  const popW = 230;
+  const popW = 240;
   const left = Math.max(4, Math.min(rect.right - popW, window.innerWidth - popW - 4));
-  const top  = Math.min(rect.bottom + 4, window.innerHeight - 280);
+  const top  = Math.min(rect.bottom + 4, window.innerHeight - 420);
   popup.style.left = `${left}px`;
   popup.style.top  = `${top}px`;
   popup.classList.remove('hidden');
@@ -332,6 +342,32 @@ function initPropsPopup() {
         b.classList.toggle('active', b.dataset.p === (p || '')));
       renderOutline(State.propsIdx);
       scheduleMapUpdate(); scheduleSave();
+    });
+  });
+
+  document.querySelectorAll('.marker-color-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (State.propsIdx === null) return;
+      const color = btn.dataset.color || null;
+      State.items[State.propsIdx].markerColor = color;
+      document.querySelectorAll('.marker-color-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.color === (color || '')));
+      renderOutline(State.propsIdx);
+      if (State.currentView === 'tasks') renderTaskList();
+      scheduleSave();
+    });
+  });
+
+  document.querySelectorAll('.marker-stamp-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (State.propsIdx === null) return;
+      const stamp = btn.dataset.stamp || null;
+      State.items[State.propsIdx].markerStamp = stamp;
+      document.querySelectorAll('.marker-stamp-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.stamp === (stamp || '')));
+      renderOutline(State.propsIdx);
+      if (State.currentView === 'tasks') renderTaskList();
+      scheduleSave();
     });
   });
 
@@ -914,6 +950,104 @@ function initMapDrag() {
   });
 }
 
+// ===== アウトラインドラッグ＆ドロップ =====
+
+const _outlineDrag = {
+  active: false, startIdx: null, subtreeLen: null,
+  ghostEl: null, indicatorEl: null, insertAtIdx: null,
+  startY: 0, moved: false,
+};
+
+function reorderOutlineItem(startIdx, subtreeLen, insertAtIdx) {
+  const items = State.items;
+  const endIdx = startIdx + subtreeLen;
+  if (insertAtIdx === startIdx || (insertAtIdx > startIdx && insertAtIdx <= endIdx)) return;
+  const subtree = items.splice(startIdx, subtreeLen);
+  const targetIdx = insertAtIdx > endIdx ? insertAtIdx - subtreeLen : insertAtIdx;
+  items.splice(targetIdx, 0, ...subtree);
+  renderOutline(targetIdx);
+  scheduleMapUpdate();
+  scheduleSave();
+}
+
+function initOutlineDrag() {
+  const container = document.getElementById('outline-editor');
+
+  container.addEventListener('mousedown', e => {
+    const handle = e.target.closest('.item-drag-handle');
+    if (!handle) return;
+    e.preventDefault();
+    const idx = parseInt(handle.dataset.idx);
+    const level = State.items[idx].level;
+    let end = idx + 1;
+    while (end < State.items.length && State.items[end].level > level) end++;
+    _outlineDrag.active = true;
+    _outlineDrag.startIdx = idx;
+    _outlineDrag.subtreeLen = end - idx;
+    _outlineDrag.startY = e.clientY;
+    _outlineDrag.moved = false;
+    _outlineDrag.ghostEl = null;
+    _outlineDrag.indicatorEl = null;
+    _outlineDrag.insertAtIdx = null;
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!_outlineDrag.active) return;
+    if (!_outlineDrag.moved && Math.abs(e.clientY - _outlineDrag.startY) < 4) return;
+    _outlineDrag.moved = true;
+
+    if (!_outlineDrag.ghostEl) {
+      const ghost = document.createElement('div');
+      ghost.className = 'outline-drag-ghost';
+      ghost.textContent = State.items[_outlineDrag.startIdx]?.text || '(空)';
+      document.body.appendChild(ghost);
+      _outlineDrag.ghostEl = ghost;
+    }
+    _outlineDrag.ghostEl.style.top  = (e.clientY + 10) + 'px';
+    _outlineDrag.ghostEl.style.left = (e.clientX + 10) + 'px';
+
+    const itemEls = container.querySelectorAll('.outline-item');
+    let insertAtIdx = State.items.length;
+    for (const el of itemEls) {
+      const rect = el.getBoundingClientRect();
+      const elIdx = parseInt(el.dataset.idx);
+      if (e.clientY < rect.top + rect.height / 2) { insertAtIdx = elIdx; break; }
+    }
+    _outlineDrag.insertAtIdx = insertAtIdx;
+
+    if (!_outlineDrag.indicatorEl) {
+      const ind = document.createElement('div');
+      ind.className = 'outline-drop-indicator';
+      document.body.appendChild(ind);
+      _outlineDrag.indicatorEl = ind;
+    }
+    const contRect = container.getBoundingClientRect();
+    let indY;
+    if (insertAtIdx < State.items.length) {
+      const targetEl = container.querySelector(`.outline-item[data-idx="${insertAtIdx}"]`);
+      if (targetEl) indY = targetEl.getBoundingClientRect().top;
+    } else {
+      const lastEl = itemEls[itemEls.length - 1];
+      if (lastEl) indY = lastEl.getBoundingClientRect().bottom;
+    }
+    if (indY !== undefined) {
+      _outlineDrag.indicatorEl.style.top   = (indY - 1) + 'px';
+      _outlineDrag.indicatorEl.style.left  = contRect.left + 'px';
+      _outlineDrag.indicatorEl.style.width = contRect.width + 'px';
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!_outlineDrag.active) return;
+    if (_outlineDrag.moved && _outlineDrag.insertAtIdx !== null) {
+      reorderOutlineItem(_outlineDrag.startIdx, _outlineDrag.subtreeLen, _outlineDrag.insertAtIdx);
+    }
+    if (_outlineDrag.ghostEl) { _outlineDrag.ghostEl.remove(); _outlineDrag.ghostEl = null; }
+    if (_outlineDrag.indicatorEl) { _outlineDrag.indicatorEl.remove(); _outlineDrag.indicatorEl = null; }
+    _outlineDrag.active = _outlineDrag.moved = false;
+  });
+}
+
 // ===== 区切り線ドラッグ =====
 
 function initResizableDivider() {
@@ -949,6 +1083,18 @@ function renderTaskList() {
   let tasks = State.items
     .map((item, idx) => ({ ...item, _origIdx: idx }))
     .filter(item => item.isTask);
+
+  // 期間クイックフィルター
+  const todayStr    = today;
+  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const weekEndStr  = new Date(Date.now() + 6 * 86400000).toISOString().slice(0, 10);
+  if (State.quickFilter === 'today') {
+    tasks = tasks.filter(t => t.deadline === todayStr);
+  } else if (State.quickFilter === 'tomorrow') {
+    tasks = tasks.filter(t => t.deadline && t.deadline <= tomorrowStr);
+  } else if (State.quickFilter === 'week') {
+    tasks = tasks.filter(t => t.deadline && t.deadline <= weekEndStr);
+  }
 
   // ステータスフィルター
   if (filterStatus === 'active') {
@@ -1009,6 +1155,8 @@ function renderTaskList() {
     const status  = normalizeStatus(t);
     const overdue = status !== 'done' && status !== 'cancelled' && t.deadline && t.deadline < today;
     const isDone  = status === 'done' || status === 'cancelled';
+    const markerColorClass = t.markerColor ? `marker-${t.markerColor}` : '';
+    const stampEl = t.markerStamp ? `<span class="task-stamp">${t.markerStamp}</span>` : '';
 
     const statusSel = `
       <select class="task-status-sel status-sel-${status}"
@@ -1035,9 +1183,10 @@ function renderTaskList() {
              onclick="event.stopPropagation()">`;
 
     return `
-      <div class="task-row ${overdue ? 'is-overdue' : ''} ${isDone ? 'is-done' : ''}">
+      <div class="task-row ${overdue ? 'is-overdue' : ''} ${isDone ? 'is-done' : ''} ${markerColorClass}">
         <div class="task-row-left">
           ${statusSel}
+          ${stampEl}
           <span class="task-row-text ${isDone ? 'done-text' : ''}"
                 onclick="focusItemById('${t.id}')">${esc(t.text)}</span>
         </div>
@@ -1075,6 +1224,15 @@ function initViewToggle() {
 
   document.querySelectorAll('.sort-btn').forEach(btn => {
     btn.addEventListener('click', () => toggleSortBy(btn.dataset.sort));
+  });
+
+  document.querySelectorAll('.quick-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      State.quickFilter = btn.dataset.filter;
+      document.querySelectorAll('.quick-filter-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.filter === State.quickFilter));
+      renderTaskList();
+    });
   });
 }
 
@@ -1201,6 +1359,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   initOutlineEditor();
+  initOutlineDrag();
   initPropsPopup();
   initPan();
   initMapDrag();

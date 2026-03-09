@@ -73,6 +73,12 @@
       <!-- タスクリストビュー -->
       <div id="task-view" class="hidden">
         <div id="task-filters">
+          <div class="quick-filter-row">
+            <button class="quick-filter-btn active" data-filter="">全期間</button>
+            <button class="quick-filter-btn" data-filter="today">今日</button>
+            <button class="quick-filter-btn" data-filter="tomorrow">今日・明日</button>
+            <button class="quick-filter-btn" data-filter="week">今週中</button>
+          </div>
           <div class="filter-row">
             <select id="filter-status">
               <option value="active">未完了のみ</option>
@@ -140,8 +146,28 @@
         </div>
       </div>
     </div>
+    <div class="pop-section">
+      <div class="pop-label">🎨 マーカー</div>
+      <div class="marker-color-buttons">
+        <button class="marker-color-btn" data-color="red"    title="赤"></button>
+        <button class="marker-color-btn" data-color="yellow" title="黄"></button>
+        <button class="marker-color-btn" data-color="green"  title="緑"></button>
+        <button class="marker-color-btn" data-color="blue"   title="青"></button>
+        <button class="marker-color-btn" data-color=""       title="なし">✕</button>
+      </div>
+    </div>
+    <div class="pop-section">
+      <div class="pop-label">🏷 スタンプ</div>
+      <div class="marker-stamp-buttons">
+        <button class="marker-stamp-btn" data-stamp="⭐" title="スター">⭐</button>
+        <button class="marker-stamp-btn" data-stamp="🚩" title="フラグ">🚩</button>
+        <button class="marker-stamp-btn" data-stamp="💡" title="アイデア">💡</button>
+        <button class="marker-stamp-btn" data-stamp="❗" title="重要">❗</button>
+        <button class="marker-stamp-btn" data-stamp=""   title="なし">✕</button>
+      </div>
+    </div>
   </div>
 
-  <script src="/static/mindmap.js?v=5"></script>
+  <script src="/static/mindmap.js?v=6"></script>
 </body>
 </html>
