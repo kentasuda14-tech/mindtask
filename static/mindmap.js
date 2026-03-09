@@ -24,6 +24,7 @@ const State = {
   scale: 1,
   mapLayout: 'tree', // 'tree' | 'radial'
   quickFilter: '',   // '' | 'today' | 'tomorrow' | 'week'
+  noteItemId: null,
 };
 
 // ===== 定数 =====
@@ -87,6 +88,7 @@ function renderOutline(focusIdx, cursorPos) {
     const indentW = item.level * INDENT_PX;
     const markerColorClass = item.markerColor ? `marker-${item.markerColor}` : '';
     const stampSpan = item.markerStamp ? `<span class="item-stamp">${item.markerStamp}</span>` : '';
+    const hasNote = !!(item.note || (item.links && item.links.length > 0));
 
     let bulletChar, bulletClass;
     if (isTask) {
@@ -123,6 +125,7 @@ function renderOutline(focusIdx, cursorPos) {
                placeholder="${item.level === 0 ? 'タイトル' : 'アイテムを入力…'}">
         <div class="item-meta">${stampSpan}${statusBadge}${priDot}${dlSpan}</div>
         ${indentBtns}
+        <button class="item-note-btn${hasNote ? ' has-note' : ''}" data-idx="${idx}" title="メモ・リンク">📝</button>
         <button class="item-props-btn" data-idx="${idx}" title="タスク設定・優先度・期限">•••</button>
       </div>`;
   }).join('');
@@ -159,7 +162,7 @@ function initOutlineEditor() {
       const newItem = {
         id: genId(), text: val.slice(cur), level: item.level,
         isTask: false, done: false, status: null, deadline: null, priority: null,
-        markerColor: null, markerStamp: null,
+        markerColor: null, markerStamp: null, note: '', links: [],
       };
       State.items.splice(idx + 1, 0, newItem);
       renderOutline(idx + 1, 0);
@@ -232,6 +235,13 @@ function initOutlineEditor() {
         scheduleMapUpdate(); scheduleSave();
         if (State.currentView === 'tasks') renderTaskList();
       }
+      return;
+    }
+
+    // 📝ノートボタン
+    if (e.target.classList.contains('item-note-btn')) {
+      const idx = parseInt(e.target.dataset.idx);
+      openNoteDrawer(State.items[idx].id);
       return;
     }
 
@@ -1157,6 +1167,8 @@ function renderTaskList() {
     const isDone  = status === 'done' || status === 'cancelled';
     const markerColorClass = t.markerColor ? `marker-${t.markerColor}` : '';
     const stampEl = t.markerStamp ? `<span class="task-stamp">${t.markerStamp}</span>` : '';
+    const hasTaskNote = !!(t.note || (t.links && t.links.length > 0));
+    const taskNoteBtn = `<button class="task-note-btn${hasTaskNote ? ' has-note' : ''}" data-id="${t.id}" onclick="openNoteDrawer('${t.id}'); event.stopPropagation();" title="メモ・リンク">📝</button>`;
 
     const statusSel = `
       <select class="task-status-sel status-sel-${status}"
@@ -1191,6 +1203,7 @@ function renderTaskList() {
                 onclick="focusItemById('${t.id}')">${esc(t.text)}</span>
         </div>
         <div class="task-row-right">
+          ${taskNoteBtn}
           ${priSel}
           ${dlInput}
           ${t.section ? `<span class="task-section">📁 ${esc(t.section)}</span>` : ''}
@@ -1233,6 +1246,125 @@ function initViewToggle() {
         b.classList.toggle('active', b.dataset.filter === State.quickFilter));
       renderTaskList();
     });
+  });
+}
+
+// ===== ノートドロワー =====
+
+function openNoteDrawer(itemId) {
+  State.noteItemId = itemId;
+  const item = State.items.find(i => i.id === itemId);
+  if (!item) return;
+  document.getElementById('note-drawer-title').textContent = item.text || '(無題)';
+  document.getElementById('note-textarea').value = item.note || '';
+  renderLinks();
+  document.getElementById('note-drawer').classList.add('open');
+}
+
+function closeNoteDrawer() {
+  document.getElementById('note-drawer').classList.remove('open');
+  State.noteItemId = null;
+}
+
+function refreshNoteButtonState(itemId) {
+  const item = State.items.find(i => i.id === itemId);
+  if (!item) return;
+  const hasNote = !!(item.note || (item.links && item.links.length > 0));
+  const idx = State.items.indexOf(item);
+  const outlineBtn = document.querySelector(`.outline-item[data-idx="${idx}"] .item-note-btn`);
+  if (outlineBtn) outlineBtn.classList.toggle('has-note', hasNote);
+  document.querySelectorAll(`.task-note-btn[data-id="${itemId}"]`).forEach(b =>
+    b.classList.toggle('has-note', hasNote));
+}
+
+function renderLinks() {
+  if (!State.noteItemId) return;
+  const item = State.items.find(i => i.id === State.noteItemId);
+  if (!item) return;
+  const links = item.links || [];
+  const container = document.getElementById('links-list');
+
+  if (!links.length) {
+    container.innerHTML = '<p class="no-links">リンクがまだありません</p>';
+    return;
+  }
+
+  container.innerHTML = links.map((link, i) => `
+    <div class="link-row">
+      <div class="link-preview">
+        ${link.url
+          ? `<a href="${esc(link.url)}" target="_blank" rel="noopener" class="link-anchor">${esc(link.label || link.url)}</a>`
+          : '<span class="link-empty">URLを入力してください</span>'}
+      </div>
+      <div class="link-edit-row">
+        <input class="link-label-inp" type="text" value="${esc(link.label)}" placeholder="表示名（省略可）" data-li="${i}">
+        <input class="link-url-inp" type="url" value="${esc(link.url)}" placeholder="https://..." data-li="${i}">
+        <button class="link-delete-btn" data-li="${i}" title="削除">✕</button>
+      </div>
+    </div>`).join('');
+
+  container.querySelectorAll('.link-label-inp').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const i = parseInt(e.target.dataset.li);
+      if (!item.links[i]) return;
+      item.links[i].label = e.target.value;
+      const anchor = e.target.closest('.link-row').querySelector('.link-anchor');
+      if (anchor) anchor.textContent = e.target.value || item.links[i].url;
+      scheduleSave();
+    });
+  });
+
+  container.querySelectorAll('.link-url-inp').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const i = parseInt(e.target.dataset.li);
+      if (!item.links[i]) return;
+      item.links[i].url = e.target.value;
+      scheduleSave();
+    });
+    inp.addEventListener('change', () => renderLinks());
+  });
+
+  container.querySelectorAll('.link-delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.li);
+      item.links.splice(i, 1);
+      renderLinks();
+      refreshNoteButtonState(State.noteItemId);
+      scheduleSave();
+    });
+  });
+}
+
+function initNoteDrawer() {
+  document.getElementById('note-drawer-close').addEventListener('click', closeNoteDrawer);
+
+  document.getElementById('note-textarea').addEventListener('input', e => {
+    if (!State.noteItemId) return;
+    const item = State.items.find(i => i.id === State.noteItemId);
+    if (!item) return;
+    item.note = e.target.value;
+    refreshNoteButtonState(State.noteItemId);
+    scheduleSave();
+  });
+
+  document.getElementById('btn-add-link').addEventListener('click', () => {
+    if (!State.noteItemId) return;
+    const item = State.items.find(i => i.id === State.noteItemId);
+    if (!item) return;
+    if (!item.links) item.links = [];
+    item.links.push({ url: '', label: '' });
+    renderLinks();
+    requestAnimationFrame(() => {
+      const inputs = document.querySelectorAll('#links-list .link-url-inp');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    });
+    scheduleSave();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && document.getElementById('note-drawer').classList.contains('open')) {
+      closeNoteDrawer();
+    }
   });
 }
 
@@ -1290,6 +1422,9 @@ async function loadDoc(docId) {
     if (item.isTask && !item.status) {
       item.status = item.done ? 'done' : 'todo';
     }
+    // note/links マイグレーション
+    if (item.note === undefined) item.note = '';
+    if (!item.links) item.links = [];
   });
 
   document.getElementById('doc-select').value = docId;
@@ -1360,6 +1495,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initOutlineEditor();
   initOutlineDrag();
+  initNoteDrawer();
   initPropsPopup();
   initPan();
   initMapDrag();

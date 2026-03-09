@@ -168,6 +168,31 @@
     </div>
   </div>
 
-  <script src="/static/mindmap.js?v=6"></script>
+  <!-- ノートドロワー -->
+  <div id="note-drawer">
+    <div id="note-drawer-header">
+      <div class="note-header-title">
+        <span class="note-header-icon">📝</span>
+        <span id="note-drawer-title"></span>
+      </div>
+      <button id="note-drawer-close" title="閉じる（Esc）">✕</button>
+    </div>
+    <div id="note-drawer-body">
+      <div class="note-section-block">
+        <div class="note-section-label">メモ</div>
+        <textarea id="note-textarea" placeholder="自由にメモを入力…"></textarea>
+      </div>
+      <div class="note-section-block">
+        <div class="note-links-header">
+          <span class="note-section-label">🔗 リンク・添付</span>
+          <button id="btn-add-link" class="note-add-link-btn">＋ 追加</button>
+        </div>
+        <p class="note-links-hint">Google Drive・Dropboxなどにアップしたファイルのリンクも貼れます</p>
+        <div id="links-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/mindmap.js?v=7"></script>
 </body>
 </html>
