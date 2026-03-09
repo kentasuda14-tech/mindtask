@@ -1,0 +1,12 @@
+# 環境変数（APIキーを含むため絶対にGitHubに上げない）
+.env
+
+# ローカルのデータファイル（クラウドでは /data ディスクに保存される）
+data/mindmaps.json
+data/documents.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store

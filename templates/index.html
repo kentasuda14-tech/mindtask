@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>MindTask</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- ヘッダー -->
+  <header id="app-header">
+    <div class="header-left">
+      <span class="app-logo">MindTask</span>
+      <select id="doc-select"></select>
+      <button id="btn-new-doc" class="btn btn-secondary" title="新規作成">＋</button>
+    </div>
+    <div class="header-right">
+      <button id="btn-view-map" class="view-btn active">マップ</button>
+      <button id="btn-view-tasks" class="view-btn">タスク</button>
+      <span id="save-status">保存済み</span>
+    </div>
+  </header>
+
+  <!-- モバイルタブ（スマホのみ表示） -->
+  <div id="mobile-tabs">
+    <button class="mob-tab active" data-panel="editor">✏ メモ</button>
+    <button class="mob-tab" data-panel="map">🗺 マップ</button>
+    <button class="mob-tab" data-panel="tasks">📋 タスク</button>
+  </div>
+
+  <!-- メインコンテンツ -->
+  <main id="app-main">
+
+    <!-- 左: アウトラインエディタ -->
+    <div id="editor-panel">
+      <div id="editor-toolbar">
+        <span class="toolbar-hint">Enter: 追加　Tab: 子項目　Shift+Tab: 戻す　•••: タスク設定</span>
+      </div>
+      <div id="outline-editor"></div>
+      <div id="add-item-footer">
+        <button id="btn-add-item">＋ アイテムを追加</button>
+      </div>
+    </div>
+
+    <!-- 区切り線（デスクトップのみ） -->
+    <div id="panel-divider"></div>
+
+    <!-- 右: マップ or タスクリスト -->
+    <div id="view-panel">
+
+      <!-- マップビュー -->
+      <div id="map-view">
+        <svg id="mindmap-canvas" xmlns="http://www.w3.org/2000/svg">
+          <g id="world">
+            <g id="edges-layer"></g>
+            <g id="nodes-layer"></g>
+          </g>
+        </svg>
+      </div>
+
+      <!-- タスクリストビュー -->
+      <div id="task-view" class="hidden">
+        <div id="task-filters">
+          <label><input type="checkbox" id="filter-pending" checked> 未完了</label>
+          <label><input type="checkbox" id="filter-done"> 完了済み</label>
+          <select id="filter-priority">
+            <option value="">全優先度</option>
+            <option value="high">🔴 高</option>
+            <option value="mid">🟡 中</option>
+            <option value="low">🟢 低</option>
+          </select>
+        </div>
+        <div id="task-list-container"></div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- プロパティポップアップ -->
+  <div id="props-popup" class="hidden">
+    <div class="pop-section">
+      <label class="pop-check-row">
+        <input type="checkbox" id="pop-is-task">
+        <span>タスクにする</span>
+      </label>
+    </div>
+    <div id="pop-task-extra" class="hidden">
+      <div class="pop-section">
+        <label class="pop-check-row">
+          <input type="checkbox" id="pop-done">
+          <span>完了済み</span>
+        </label>
+      </div>
+      <div class="pop-section">
+        <div class="pop-label">📅 期限</div>
+        <input type="date" id="pop-deadline">
+      </div>
+      <div class="pop-section">
+        <div class="pop-label">優先度</div>
+        <div class="pri-buttons">
+          <button class="pri-btn" data-p="high">🔴 高</button>
+          <button class="pri-btn" data-p="mid">🟡 中</button>
+          <button class="pri-btn" data-p="low">🟢 低</button>
+          <button class="pri-btn" data-p="">なし</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/mindmap.js"></script>
+</body>
+</html>
