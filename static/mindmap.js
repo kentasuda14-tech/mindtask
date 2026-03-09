@@ -138,6 +138,7 @@ function initOutlineEditor() {
 
   container.addEventListener('keydown', e => {
     if (e.target.tagName !== 'INPUT') return;
+    if (e.isComposing) return; // IME変換中のEnterは無視
     const itemEl = e.target.closest('.outline-item');
     if (!itemEl) return;
     const idx = parseInt(itemEl.dataset.idx);
