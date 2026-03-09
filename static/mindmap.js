@@ -21,6 +21,8 @@ const State = {
   taskSort: 'priority',
   taskSortDir: 'asc',
   hideCompleted: false,
+  scale: 1,
+  mapLayout: 'tree', // 'tree' | 'radial'
 };
 
 // ===== 定数 =====
@@ -544,10 +546,14 @@ function drawMap() {
   function visit(node, parent) {
     if (parent) {
       const path = svgEl('path');
-      const x1 = parent.x + NODE_W / 2, y1 = parent.y;
-      const x2 = node.x - NODE_W / 2,   y2 = node.y;
-      const mx = (x1 + x2) / 2;
-      path.setAttribute('d', `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+      if (State.mapLayout === 'radial') {
+        path.setAttribute('d', `M${parent.x},${parent.y} L${node.x},${node.y}`);
+      } else {
+        const x1 = parent.x + NODE_W / 2, y1 = parent.y;
+        const x2 = node.x - NODE_W / 2,   y2 = node.y;
+        const mx = (x1 + x2) / 2;
+        path.setAttribute('d', `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+      }
       path.setAttribute('class', 'edge-line');
       if (node.isTask) path.setAttribute('stroke', (node.done || node.status === 'done') ? '#86EFAC' : '#FDBA74');
       edgesLayer.appendChild(path);
@@ -586,14 +592,24 @@ function drawMap() {
     text.textContent = trunc(node.text, node.isTask ? 11 : 13);
     g.appendChild(text);
 
-    g.addEventListener('click', e => { e.stopPropagation(); focusItemById(node.id); });
+    // マウス: ドラッグ判定（クリックとドラッグを区別）
+    g.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      e.preventDefault();
+      startNodeDrag(e, node.id);
+    });
 
+    // タッチ: ダブルタップでフォーカス、シングルでドラッグ開始
     let lastTap = 0;
+    g.addEventListener('touchstart', e => {
+      e.stopPropagation();
+      const now = Date.now();
+      if (now - lastTap < 300) { e.preventDefault(); focusItemById(node.id); }
+      lastTap = now;
+    }, { passive: true });
     g.addEventListener('touchend', e => {
       e.preventDefault();
-      const now = Date.now();
-      if (now - lastTap < 300) focusItemById(node.id);
-      lastTap = now;
     });
 
     nodesLayer.appendChild(g);
@@ -608,7 +624,11 @@ function refreshMap() {
   const vRoot = getVisualRoot(tree);
   State._vRoot = vRoot;
   const svg = document.getElementById('mindmap-canvas');
-  layoutTree(vRoot, (svg.clientHeight || 600) / 2);
+  if (State.mapLayout === 'radial') {
+    layoutRadial(vRoot);
+  } else {
+    layoutTree(vRoot, (svg.clientHeight || 600) / 2);
+  }
   drawMap();
   if (State.currentView === 'tasks') renderTaskList();
 }
@@ -626,7 +646,7 @@ function focusItemById(itemId) {
 
 function updateWorldTransform() {
   document.getElementById('world')
-    .setAttribute('transform', `translate(${State.panX},${State.panY})`);
+    .setAttribute('transform', `translate(${State.panX},${State.panY}) scale(${State.scale})`);
 }
 
 // ===== パン（マップ移動） =====
@@ -652,22 +672,245 @@ function initPan() {
     svg.classList.remove('is-panning');
   });
 
-  svg.addEventListener('touchstart', e => {
-    if (e.touches.length !== 1 || e.target.closest('.node-group')) return;
-    State._panSX = e.touches[0].clientX; State._panSY = e.touches[0].clientY;
-    State._panOX = State.panX; State._panOY = State.panY;
-  }, { passive: true });
-
-  svg.addEventListener('touchmove', e => {
-    if (e.touches.length !== 1) return;
+  // ===== ホイール: ピンチズーム + 2本指パン =====
+  svg.addEventListener('wheel', e => {
     e.preventDefault();
-    State.panX = State._panOX + (e.touches[0].clientX - State._panSX);
-    State.panY = State._panOY + (e.touches[0].clientY - State._panSY);
+    const rect = svg.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    if (e.ctrlKey) {
+      // ピンチ操作（trackpad pinch / Ctrl+scroll）
+      const factor = e.deltaY > 0 ? 0.92 : 1.09;
+      const ns = Math.max(0.2, Math.min(4, State.scale * factor));
+      State.panX = cx - (cx - State.panX) * ns / State.scale;
+      State.panY = cy - (cy - State.panY) * ns / State.scale;
+      State.scale = ns;
+    } else {
+      // 2本指スクロールでパン
+      State.panX -= e.deltaX;
+      State.panY -= e.deltaY;
+    }
     updateWorldTransform();
   }, { passive: false });
 
+  // ===== タッチ: 1本指パン + 2本指ピンチ =====
+  let _pt = null; // 1本指パン用
+  let _pinchDist = null;
+
+  svg.addEventListener('touchstart', e => {
+    if (e.target.closest('.node-group')) return;
+    if (e.touches.length === 1) {
+      _pt = { sx: e.touches[0].clientX, sy: e.touches[0].clientY,
+               ox: State.panX, oy: State.panY };
+      _pinchDist = null;
+    } else if (e.touches.length === 2) {
+      _pt = null;
+      _pinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY);
+    }
+  }, { passive: true });
+
+  svg.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && _pt) {
+      State.panX = _pt.ox + (e.touches[0].clientX - _pt.sx);
+      State.panY = _pt.oy + (e.touches[0].clientY - _pt.sy);
+      updateWorldTransform();
+    } else if (e.touches.length === 2 && _pinchDist !== null) {
+      const newDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY);
+      const rect = svg.getBoundingClientRect();
+      const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+      const factor = newDist / _pinchDist;
+      const ns = Math.max(0.2, Math.min(4, State.scale * factor));
+      State.panX = cx - (cx - State.panX) * ns / State.scale;
+      State.panY = cy - (cy - State.panY) * ns / State.scale;
+      State.scale = ns;
+      _pinchDist = newDist;
+      updateWorldTransform();
+    }
+  }, { passive: false });
+
+  svg.addEventListener('touchend', e => {
+    if (e.touches.length < 2) _pinchDist = null;
+    if (e.touches.length === 0) _pt = null;
+  }, { passive: true });
+
   svg.addEventListener('click', () => {
     document.getElementById('props-popup').classList.add('hidden');
+  });
+}
+
+// ===== 放射状レイアウト =====
+
+const RADIAL_STEP = 190;
+
+function countLeaves(node) {
+  if (!node.children.length) return 1;
+  return node.children.reduce((s, c) => s + countLeaves(c), 0);
+}
+
+function layoutRadial(root) {
+  function place(node, cx, cy, a0, a1) {
+    node.x = cx; node.y = cy;
+    if (!node.children.length) return;
+    const total = node.children.reduce((s, c) => s + countLeaves(c), 0);
+    let angle = a0;
+    for (const child of node.children) {
+      const span = (a1 - a0) * countLeaves(child) / total;
+      const mid  = angle + span / 2;
+      place(child, cx + Math.cos(mid) * RADIAL_STEP, cy + Math.sin(mid) * RADIAL_STEP,
+            mid - span / 2, mid + span / 2);
+      angle += span;
+    }
+  }
+  place(root, 0, 0, -Math.PI, Math.PI);
+}
+
+function toggleMapLayout() {
+  State.mapLayout = State.mapLayout === 'tree' ? 'radial' : 'tree';
+  const btn = document.getElementById('btn-map-layout');
+  btn.textContent = State.mapLayout === 'radial' ? '階層表示' : '放射状';
+  btn.classList.toggle('active', State.mapLayout === 'radial');
+  // レイアウト切替時にパン位置をリセット
+  const svg = document.getElementById('mindmap-canvas');
+  if (State.mapLayout === 'radial') {
+    State.panX = (svg.clientWidth  || 900) / 2;
+    State.panY = (svg.clientHeight || 600) / 2;
+  } else {
+    State.panX = 0;
+    State.panY = (svg.clientHeight || 600) / 2 - (State._vRoot?.y || 300);
+  }
+  State.scale = 1;
+  refreshMap();
+  updateWorldTransform();
+}
+
+function resetMapView() {
+  const svg = document.getElementById('mindmap-canvas');
+  State.scale = 1;
+  if (State.mapLayout === 'radial') {
+    State.panX = (svg.clientWidth  || 900) / 2;
+    State.panY = (svg.clientHeight || 600) / 2;
+  } else {
+    State.panX = 0;
+    State.panY = (svg.clientHeight || 600) / 2 - (State._vRoot?.y || 300);
+  }
+  updateWorldTransform();
+}
+
+// ===== ノードドラッグ（親子関係の組み替え） =====
+
+const _drag = {
+  active: false, nodeId: null,
+  startX: 0, startY: 0, moved: false,
+  ghostEl: null, dropTargetId: null,
+};
+
+function startNodeDrag(e, nodeId) {
+  _drag.active    = true;
+  _drag.nodeId    = nodeId;
+  _drag.startX    = e.clientX;
+  _drag.startY    = e.clientY;
+  _drag.moved     = false;
+  _drag.dropTargetId = null;
+  _drag.ghostEl   = null;
+}
+
+function cleanupDrag() {
+  if (_drag.ghostEl) { _drag.ghostEl.remove(); _drag.ghostEl = null; }
+  const orig = document.querySelector(`[data-id="${_drag.nodeId}"]`);
+  if (orig) orig.style.opacity = '';
+  if (_drag.dropTargetId) {
+    document.querySelector(`[data-id="${_drag.dropTargetId}"]`)
+      ?.classList.remove('drop-target');
+  }
+  _drag.active = _drag.moved = false;
+  _drag.nodeId = _drag.dropTargetId = null;
+}
+
+function reparentNode(dragId, targetId) {
+  const items = State.items;
+  const dragIdx = items.findIndex(i => i.id === dragId);
+  const targetIdx = items.findIndex(i => i.id === targetId);
+  if (dragIdx === -1 || targetIdx === -1 || dragIdx === targetIdx) return;
+
+  // 子孫にはドロップ不可
+  const dragLevel = items[dragIdx].level;
+  let endIdx = dragIdx + 1;
+  while (endIdx < items.length && items[endIdx].level > dragLevel) endIdx++;
+  if (targetIdx > dragIdx && targetIdx < endIdx) return;
+
+  // サブツリーを切り出し
+  const subtree = items.splice(dragIdx, endIdx - dragIdx);
+
+  // ターゲットの位置（splice後に再検索）
+  const newTargetIdx = items.findIndex(i => i.id === targetId);
+  const targetLevel  = items[newTargetIdx].level;
+
+  // ターゲットのサブツリー末尾を探す
+  let insertIdx = newTargetIdx + 1;
+  while (insertIdx < items.length && items[insertIdx].level > targetLevel) insertIdx++;
+
+  // レベル調整して挿入
+  const levelDiff = (targetLevel + 1) - subtree[0].level;
+  subtree.forEach(item => item.level = Math.max(0, item.level + levelDiff));
+  items.splice(insertIdx, 0, ...subtree);
+
+  renderOutline();
+  scheduleMapUpdate();
+  scheduleSave();
+}
+
+function initMapDrag() {
+  window.addEventListener('mousemove', e => {
+    if (!_drag.active) return;
+    const dx = e.clientX - _drag.startX;
+    const dy = e.clientY - _drag.startY;
+    if (!_drag.moved && Math.hypot(dx, dy) < 8) return;
+    _drag.moved = true;
+
+    // ゴースト生成
+    if (!_drag.ghostEl) {
+      const item = State.items.find(i => i.id === _drag.nodeId);
+      _drag.ghostEl = document.createElement('div');
+      _drag.ghostEl.className = 'map-drag-ghost';
+      _drag.ghostEl.textContent = item?.text || '';
+      document.body.appendChild(_drag.ghostEl);
+      const orig = document.querySelector(`[data-id="${_drag.nodeId}"]`);
+      if (orig) orig.style.opacity = '0.3';
+    }
+    _drag.ghostEl.style.left = (e.clientX + 14) + 'px';
+    _drag.ghostEl.style.top  = (e.clientY +  6) + 'px';
+
+    // ドロップターゲット検出
+    _drag.ghostEl.style.visibility = 'hidden';
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    _drag.ghostEl.style.visibility = '';
+    const tg    = under?.closest('.node-group');
+    const newId = (tg && tg.dataset.id && tg.dataset.id !== _drag.nodeId)
+      ? tg.dataset.id : null;
+
+    if (newId !== _drag.dropTargetId) {
+      if (_drag.dropTargetId)
+        document.querySelector(`[data-id="${_drag.dropTargetId}"]`)?.classList.remove('drop-target');
+      _drag.dropTargetId = newId;
+      if (_drag.dropTargetId)
+        document.querySelector(`[data-id="${_drag.dropTargetId}"]`)?.classList.add('drop-target');
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!_drag.active) return;
+    if (!_drag.moved) {
+      focusItemById(_drag.nodeId);
+    } else if (_drag.dropTargetId) {
+      reparentNode(_drag.nodeId, _drag.dropTargetId);
+    }
+    cleanupDrag();
   });
 }
 
@@ -948,9 +1191,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-export-md').addEventListener('click', exportMarkdown);
   document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
 
+  document.getElementById('btn-map-layout').addEventListener('click', toggleMapLayout);
+  document.getElementById('btn-map-reset').addEventListener('click', resetMapView);
+  document.getElementById('btn-zoom-in').addEventListener('click', () => {
+    State.scale = Math.min(4, State.scale * 1.2); updateWorldTransform();
+  });
+  document.getElementById('btn-zoom-out').addEventListener('click', () => {
+    State.scale = Math.max(0.2, State.scale / 1.2); updateWorldTransform();
+  });
+
   initOutlineEditor();
   initPropsPopup();
   initPan();
+  initMapDrag();
   initResizableDivider();
   initMobileTabs();
   initViewToggle();

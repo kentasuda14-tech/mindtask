@@ -347,6 +347,56 @@ html, body {
 }
 #map-view.hidden { display: none; }
 
+/* マップ操作ボタン群 */
+#map-controls {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+}
+
+.map-ctrl-btn {
+  padding: 4px 10px;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  background: white;
+  color: #475569;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.map-ctrl-btn:hover { border-color: #93C5FD; color: #1D4ED8; background: #EFF6FF; }
+.map-ctrl-btn.active { background: #3B82F6; color: white; border-color: #3B82F6; }
+
+/* ドラッグ中のゴースト */
+.map-drag-ghost {
+  position: fixed;
+  z-index: 9999;
+  background: #1E293B;
+  color: white;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  opacity: 0.9;
+}
+
+/* ドロップターゲットのハイライト */
+.node-group.drop-target .node-rect {
+  stroke: #3B82F6 !important;
+  stroke-width: 3 !important;
+  filter: brightness(0.92);
+}
+
 #mindmap-canvas {
   width: 100%;
   height: 100%;

@@ -56,6 +56,12 @@
 
       <!-- マップビュー -->
       <div id="map-view">
+        <div id="map-controls">
+          <button id="btn-map-layout" class="map-ctrl-btn" title="レイアウト切替">放射状</button>
+          <button id="btn-zoom-in"    class="map-ctrl-btn" title="拡大">＋</button>
+          <button id="btn-zoom-out"   class="map-ctrl-btn" title="縮小">－</button>
+          <button id="btn-map-reset"  class="map-ctrl-btn" title="表示リセット">⌂</button>
+        </div>
         <svg id="mindmap-canvas" xmlns="http://www.w3.org/2000/svg">
           <g id="world">
             <g id="edges-layer"></g>
@@ -136,6 +142,6 @@
     </div>
   </div>
 
-  <script src="/static/mindmap.js?v=4"></script>
+  <script src="/static/mindmap.js?v=5"></script>
 </body>
 </html>
