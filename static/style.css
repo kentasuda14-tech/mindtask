@@ -194,6 +194,43 @@ html, body {
   flex-shrink: 0;
 }
 
+/* ステータスバッジ（アウトライン） */
+.item-status-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.status-in_progress { background: #EFF6FF; color: #1D4ED8; }
+.status-on_hold     { background: #FFFBEB; color: #92400E; }
+.status-consulting  { background: #F5F3FF; color: #6D28D9; }
+.status-done        { background: #F0FDF4; color: #166534; }
+.status-someday     { background: #F8FAFC; color: #64748B; }
+.status-cancelled   { background: #FFF5F5; color: #991B1B; }
+
+/* モバイル インデントボタン */
+.item-indent-btns {
+  display: none;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.indent-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #E2E8F0;
+  border-radius: 5px;
+  background: white;
+  color: #64748B;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.indent-btn:hover:not(:disabled) { background: #EFF6FF; border-color: #93C5FD; color: #1D4ED8; }
+.indent-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
 .pri-dot {
   width: 7px;
   height: 7px;
@@ -346,59 +383,153 @@ html, body {
 #task-view {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 14px;
   background: #F8FAFC;
 }
 #task-view.hidden { display: none; }
 
 #task-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid #E2E8F0;
-  font-size: 13px;
-  color: #64748B;
 }
-#task-filters label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-#filter-priority {
+
+.filter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.filter-row select {
   border: 1px solid #CBD5E1;
-  border-radius: 5px;
-  padding: 3px 8px;
+  border-radius: 6px;
+  padding: 5px 10px;
   font-size: 12px;
   background: white;
+  cursor: pointer;
+  color: #1E293B;
 }
 
-.task-card {
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sort-label { font-size: 12px; color: #94A3B8; }
+
+.sort-btn {
+  padding: 4px 10px;
+  border: 1px solid #E2E8F0;
+  border-radius: 5px;
+  background: white;
+  color: #64748B;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sort-btn:hover { border-color: #93C5FD; color: #1D4ED8; }
+.sort-btn.active { background: #EFF6FF; border-color: #93C5FD; color: #1D4ED8; font-weight: 600; }
+
+/* タスク行 */
+.task-row {
   background: white;
   border: 1px solid #E2E8F0;
-  border-radius: 10px;
-  padding: 12px 16px;
-  margin-bottom: 10px;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  transition: border-color 0.15s;
 }
-.task-card:hover { border-color: #93C5FD; box-shadow: 0 2px 8px rgba(59,130,246,0.1); }
-.task-card.overdue { border-left: 3px solid #EF4444; }
-.task-card.done { opacity: 0.55; }
+.task-row:hover { border-color: #93C5FD; }
+.task-row.is-overdue { border-left: 3px solid #EF4444; }
+.task-row.is-done { opacity: 0.6; }
 
-.task-card-row { display: flex; align-items: center; gap: 10px; }
-.task-cb { width: 16px; height: 16px; cursor: pointer; accent-color: #3B82F6; flex-shrink: 0; }
-.task-text { flex: 1; font-size: 14px; color: #1E293B; }
+.task-row-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.task-row-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.task-row-text {
+  flex: 1;
+  font-size: 13px;
+  color: #1E293B;
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-row-text:hover { color: #3B82F6; text-decoration: underline; }
+
+/* ステータスセレクト（タスク一覧） */
+.task-status-sel {
+  border: none;
+  border-radius: 5px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.status-sel-todo        { background: #F1F5F9; color: #475569; }
+.status-sel-in_progress { background: #EFF6FF; color: #1D4ED8; }
+.status-sel-on_hold     { background: #FFFBEB; color: #92400E; }
+.status-sel-consulting  { background: #F5F3FF; color: #6D28D9; }
+.status-sel-done        { background: #F0FDF4; color: #166534; }
+.status-sel-someday     { background: #F8FAFC; color: #64748B; }
+.status-sel-cancelled   { background: #FFF5F5; color: #991B1B; }
+
+/* 優先度セレクト（タスク一覧） */
+.task-pri-sel {
+  border: 1px solid #E2E8F0;
+  border-radius: 5px;
+  padding: 3px 6px;
+  font-size: 11px;
+  background: white;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* 期限入力（タスク一覧） */
+.task-dl-inp {
+  border: 1px solid #E2E8F0;
+  border-radius: 5px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  background: white;
+  color: #475569;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.task-dl-inp:focus { outline: 2px solid #3B82F6; border-color: transparent; }
+
+.task-section { font-size: 11px; color: #94A3B8; white-space: nowrap; }
+
 .done-text { text-decoration: line-through; color: #94A3B8; }
-.pri-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; flex-shrink: 0; color: white; }
-.pri-badge.pri-high { background: #EF4444; }
-.pri-badge.pri-mid  { background: #F59E0B; }
-.pri-badge.pri-low  { background: #10B981; }
-
-.task-meta { margin-top: 6px; display: flex; gap: 12px; font-size: 11px; flex-wrap: wrap; color: #94A3B8; }
-.task-dl { color: #F59E0B; }
-.task-dl.overdue-text { color: #EF4444; font-weight: 600; }
-
 .no-tasks { text-align: center; padding: 60px 20px; color: #94A3B8; line-height: 2; }
 .no-tasks b { color: #475569; }
+
+/* SVG: 進行中ノード */
+.node-inprogress .node-rect { fill: #EFF6FF; stroke: #3B82F6; stroke-width: 1.5; }
+.node-inprogress .node-label { fill: #1D4ED8; }
 
 /* ===== プロパティポップアップ ===== */
 #props-popup {
@@ -492,6 +623,14 @@ html, body {
 
   /* スマホでは常にpropsボタンを表示 */
   .item-props-btn { opacity: 0.4; }
+
+  /* スマホ: インデントボタンを表示 */
+  .item-indent-btns { display: flex; }
+
+  /* タスク行: スマホでは縦並び */
+  .task-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .task-row-right { width: 100%; }
+  .task-dl-inp { flex: 1; min-width: 0; }
 
   /* ポップアップはスマホで中央表示 */
   #props-popup {

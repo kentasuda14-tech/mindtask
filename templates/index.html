@@ -62,14 +62,31 @@
       <!-- タスクリストビュー -->
       <div id="task-view" class="hidden">
         <div id="task-filters">
-          <label><input type="checkbox" id="filter-pending" checked> 未完了</label>
-          <label><input type="checkbox" id="filter-done"> 完了済み</label>
-          <select id="filter-priority">
-            <option value="">全優先度</option>
-            <option value="high">🔴 高</option>
-            <option value="mid">🟡 中</option>
-            <option value="low">🟢 低</option>
-          </select>
+          <div class="filter-row">
+            <select id="filter-status">
+              <option value="active">未完了のみ</option>
+              <option value="">全て</option>
+              <option value="todo">未着手</option>
+              <option value="in_progress">進行中</option>
+              <option value="on_hold">保留</option>
+              <option value="consulting">要相談</option>
+              <option value="done">完了</option>
+              <option value="someday">いつかやる</option>
+              <option value="cancelled">キャンセル</option>
+            </select>
+            <select id="filter-priority">
+              <option value="">全優先度</option>
+              <option value="high">🔴 高</option>
+              <option value="mid">🟡 中</option>
+              <option value="low">🟢 低</option>
+            </select>
+          </div>
+          <div class="sort-controls">
+            <span class="sort-label">並べ替え:</span>
+            <button class="sort-btn active" data-sort="priority">優先度</button>
+            <button class="sort-btn" data-sort="deadline">期限</button>
+            <button class="sort-btn" data-sort="status">ステータス</button>
+          </div>
         </div>
         <div id="task-list-container"></div>
       </div>
@@ -87,10 +104,16 @@
     </div>
     <div id="pop-task-extra" class="hidden">
       <div class="pop-section">
-        <label class="pop-check-row">
-          <input type="checkbox" id="pop-done">
-          <span>完了済み</span>
-        </label>
+        <div class="pop-label">ステータス</div>
+        <select id="pop-status" class="pop-status-select">
+          <option value="todo">未着手</option>
+          <option value="in_progress">進行中</option>
+          <option value="on_hold">保留</option>
+          <option value="consulting">要相談</option>
+          <option value="done">完了</option>
+          <option value="someday">いつかやる</option>
+          <option value="cancelled">キャンセル</option>
+        </select>
       </div>
       <div class="pop-section">
         <div class="pop-label">📅 期限</div>
