@@ -22,7 +22,6 @@ const State = {
   taskSortDir: 'asc',
   hideCompleted: false,
   scale: 1,
-  mapLayout: 'tree', // 'tree' | 'radial'
   quickFilter: '',   // '' | 'today' | 'tomorrow' | 'week'
   noteItemId: null,
   statusConfig: [],  // カスタムステータス設定
@@ -662,28 +661,72 @@ function getVisualRoot(tree) {
   return tree;
 }
 
-// ===== ツリーレイアウト =====
+// ===== ツリーレイアウト（左右展開） =====
 
-const NODE_W = 152, NODE_H = 36, H_GAP = 205;
+const NODE_W = 152, NODE_H = 36, H_GAP = 210;
+
+function countLeaves(node) {
+  if (!node.children.length) return 1;
+  return node.children.reduce((s, c) => s + countLeaves(c), 0);
+}
 
 function subtreeH(node) {
   if (!node.children.length) return NODE_H + 18;
   return node.children.reduce((s, c) => s + subtreeH(c), 0);
 }
 
-function layoutTree(root, centerY) {
-  function assign(node, x, y) {
-    node.x = x; node.y = y;
+// 左右均等に展開するマインドマップ型レイアウト
+function layoutBiTree(root, centerY) {
+  root.x = 0; root.y = centerY; root._side = 'root';
+  if (!root.children.length) return;
+
+  const children = root.children;
+  const totalLeaves = children.reduce((s, c) => s + countLeaves(c), 0);
+
+  // 葉の数で左右を均等分割（前半→右、後半→左）
+  const rightChildren = [], leftChildren = [];
+  let rightLeaves = 0;
+  for (const child of children) {
+    if (rightLeaves < totalLeaves / 2) {
+      rightChildren.push(child);
+      rightLeaves += countLeaves(child);
+    } else {
+      leftChildren.push(child);
+    }
+  }
+  // 子が1つのときは右側に
+  if (children.length >= 2 && rightChildren.length === 0) rightChildren.push(leftChildren.shift());
+  if (children.length >= 2 && leftChildren.length === 0)  leftChildren.push(rightChildren.pop());
+
+  function assignSubtree(node, x, y, dir) {
+    node.x = x; node.y = y; node._side = dir > 0 ? 'right' : 'left';
     if (!node.children.length) return;
-    const total = subtreeH(node);
+    const total = node.children.reduce((s, c) => s + subtreeH(c), 0);
     let cy = y - total / 2;
     for (const c of node.children) {
       const h = subtreeH(c);
-      assign(c, x + H_GAP, cy + h / 2);
+      assignSubtree(c, x + dir * H_GAP, cy + h / 2, dir);
       cy += h;
     }
   }
-  assign(root, 86, centerY);
+
+  // 右側
+  const rightTotal = rightChildren.reduce((s, c) => s + subtreeH(c), 0);
+  let rcy = centerY - rightTotal / 2;
+  for (const child of rightChildren) {
+    const h = subtreeH(child);
+    assignSubtree(child, H_GAP, rcy + h / 2, 1);
+    rcy += h;
+  }
+
+  // 左側
+  const leftTotal = leftChildren.reduce((s, c) => s + subtreeH(c), 0);
+  let lcy = centerY - leftTotal / 2;
+  for (const child of leftChildren) {
+    const h = subtreeH(child);
+    assignSubtree(child, -H_GAP, lcy + h / 2, -1);
+    lcy += h;
+  }
 }
 
 // ===== SVG レンダリング =====
@@ -715,28 +758,13 @@ function drawMap() {
   function visit(node, parent) {
     if (parent) {
       const path = svgEl('path');
-      if (State.mapLayout === 'radial') {
-        const px = parent.x, py = parent.y;
-        const nx = node.x,   ny = node.y;
-        const pr = Math.hypot(px, py);
-        if (pr < 1) {
-          // ルートから: シンプルなベジェ
-          const dx = nx - px, dy = ny - py;
-          path.setAttribute('d', `M${px},${py} C${px+dx*0.35},${py+dy*0.35} ${px+dx*0.65},${py+dy*0.65} ${nx},${ny}`);
-        } else {
-          // 角度ベースの曲線エッジ（親の方向から子の方向へ円弧状に曲がる）
-          const pa = Math.atan2(py, px);
-          const na = Math.atan2(ny, nx);
-          const nr = Math.hypot(nx, ny);
-          const c1 = { x: Math.cos(pa) * (pr * 0.5 + nr * 0.5), y: Math.sin(pa) * (pr * 0.5 + nr * 0.5) };
-          const c2 = { x: Math.cos(na) * (pr * 0.4 + nr * 0.6), y: Math.sin(na) * (pr * 0.4 + nr * 0.6) };
-          path.setAttribute('d', `M${px},${py} C${c1.x},${c1.y} ${c2.x},${c2.y} ${nx},${ny}`);
-        }
-      } else {
-        const x1 = parent.x + NODE_W / 2, y1 = parent.y;
-        const x2 = node.x - NODE_W / 2,   y2 = node.y;
+      {
+        // 左右展開ツリー: node._side で接続方向を決定
+        const isLeft = node._side === 'left';
+        const x1 = isLeft ? parent.x - NODE_W / 2 : parent.x + NODE_W / 2;
+        const x2 = isLeft ? node.x   + NODE_W / 2 : node.x   - NODE_W / 2;
         const mx = (x1 + x2) / 2;
-        path.setAttribute('d', `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+        path.setAttribute('d', `M${x1},${parent.y} C${mx},${parent.y} ${mx},${node.y} ${x2},${node.y}`);
       }
       path.setAttribute('class', 'edge-line');
       if (node.isTask) path.setAttribute('stroke', (node.done || node.status === 'done') ? '#86EFAC' : '#FDBA74');
@@ -808,11 +836,7 @@ function refreshMap() {
   const vRoot = getVisualRoot(tree);
   State._vRoot = vRoot;
   const svg = document.getElementById('mindmap-canvas');
-  if (State.mapLayout === 'radial') {
-    layoutRadial(vRoot);
-  } else {
-    layoutTree(vRoot, (svg.clientHeight || 600) / 2);
-  }
+  layoutBiTree(vRoot, (svg.clientHeight || 600) / 2);
   drawMap();
   if (State.currentView === 'tasks') renderTaskList();
 }
@@ -928,40 +952,6 @@ function initPan() {
   });
 }
 
-// ===== 放射状レイアウト =====
-
-const RADIAL_BASE_R  = 230;  // depth=1 の基本半径
-const RADIAL_DEPTH_R = 210;  // 深さごとに加算する半径
-const MIN_NODE_ARC   = 175;  // ノード間の最小アーク長（ノード幅＋余白）
-
-function countLeaves(node) {
-  if (!node.children.length) return 1;
-  return node.children.reduce((s, c) => s + countLeaves(c), 0);
-}
-
-function layoutRadial(root) {
-  function place(node, cx, cy, a0, a1, depth) {
-    node.x = cx; node.y = cy;
-    if (!node.children.length) return;
-    const totalLeaves = node.children.reduce((s, c) => s + countLeaves(c), 0);
-    const angleSpan   = a1 - a0;
-    // ノードが重ならない最小半径を計算
-    // arc = radius * (angleSpan / totalLeaves) >= MIN_NODE_ARC
-    const minRadius = (MIN_NODE_ARC * totalLeaves) / angleSpan;
-    const radius    = Math.max(RADIAL_BASE_R + (depth - 1) * RADIAL_DEPTH_R, minRadius);
-    let angle = a0;
-    for (const child of node.children) {
-      const span = angleSpan * countLeaves(child) / totalLeaves;
-      const mid  = angle + span / 2;
-      place(child,
-        cx + Math.cos(mid) * radius,
-        cy + Math.sin(mid) * radius,
-        mid - span / 2, mid + span / 2, depth + 1);
-      angle += span;
-    }
-  }
-  place(root, 0, 0, -Math.PI, Math.PI, 1);
-}
 
 // ===== ステータス管理モーダル =====
 
@@ -1067,35 +1057,12 @@ function initStatusModal() {
   document.getElementById('btn-status-settings').addEventListener('click', openStatusModal);
 }
 
-function toggleMapLayout() {
-  State.mapLayout = State.mapLayout === 'tree' ? 'radial' : 'tree';
-  const btn = document.getElementById('btn-map-layout');
-  btn.textContent = State.mapLayout === 'radial' ? '階層表示' : '放射状';
-  btn.classList.toggle('active', State.mapLayout === 'radial');
-  // レイアウト切替時にパン位置をリセット
-  const svg = document.getElementById('mindmap-canvas');
-  if (State.mapLayout === 'radial') {
-    State.panX = (svg.clientWidth  || 900) / 2;
-    State.panY = (svg.clientHeight || 600) / 2;
-  } else {
-    State.panX = 0;
-    State.panY = (svg.clientHeight || 600) / 2 - (State._vRoot?.y || 300);
-  }
-  State.scale = 1;
-  refreshMap();
-  updateWorldTransform();
-}
 
 function resetMapView() {
   const svg = document.getElementById('mindmap-canvas');
   State.scale = 1;
-  if (State.mapLayout === 'radial') {
-    State.panX = (svg.clientWidth  || 900) / 2;
-    State.panY = (svg.clientHeight || 600) / 2;
-  } else {
-    State.panX = 0;
-    State.panY = (svg.clientHeight || 600) / 2 - (State._vRoot?.y || 300);
-  }
+  State.panX = (svg.clientWidth  || 900) / 2;
+  State.panY = (svg.clientHeight || 600) / 2;
   updateWorldTransform();
 }
 
@@ -1696,8 +1663,8 @@ async function loadDoc(docId) {
 
   requestAnimationFrame(() => {
     const svg = document.getElementById('mindmap-canvas');
-    State.panX = 0;
-    State.panY = (svg.clientHeight || 600) / 2 - (State._vRoot?.y || 300);
+    State.panX = (svg.clientWidth  || 900) / 2;
+    State.panY = (svg.clientHeight || 600) / 2;
     updateWorldTransform();
   });
 }
@@ -1749,7 +1716,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-export-md').addEventListener('click', exportMarkdown);
   document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
 
-  document.getElementById('btn-map-layout').addEventListener('click', toggleMapLayout);
   document.getElementById('btn-map-reset').addEventListener('click', resetMapView);
   document.getElementById('btn-zoom-in').addEventListener('click', () => {
     State.scale = Math.min(4, State.scale * 1.2); updateWorldTransform();
