@@ -18,6 +18,7 @@
     <div class="header-right">
       <button id="btn-view-map" class="view-btn active">マップ</button>
       <button id="btn-view-tasks" class="view-btn">タスク</button>
+      <button id="btn-status-settings" class="btn btn-secondary" title="ステータス管理" style="padding:4px 9px;font-size:14px">⚙</button>
       <span id="save-status">保存済み</span>
     </div>
   </header>
@@ -97,12 +98,19 @@
               <option value="mid">🟡 中</option>
               <option value="low">🟢 低</option>
             </select>
+            <select id="filter-assignee">
+              <option value="">全担当</option>
+              <option value="self">自分</option>
+              <option value="delegated">依頼中</option>
+              <option value="none">未設定</option>
+            </select>
           </div>
           <div class="sort-controls">
             <span class="sort-label">並べ替え:</span>
             <button class="sort-btn active" data-sort="priority">優先度</button>
             <button class="sort-btn" data-sort="deadline">期限</button>
             <button class="sort-btn" data-sort="status">ステータス</button>
+            <button class="sort-btn" data-sort="assignee">担当</button>
           </div>
         </div>
         <div id="task-list-container"></div>
@@ -123,13 +131,6 @@
       <div class="pop-section">
         <div class="pop-label">ステータス</div>
         <select id="pop-status" class="pop-status-select">
-          <option value="todo">未着手</option>
-          <option value="in_progress">進行中</option>
-          <option value="on_hold">保留</option>
-          <option value="consulting">要相談</option>
-          <option value="done">完了</option>
-          <option value="someday">いつかやる</option>
-          <option value="cancelled">キャンセル</option>
         </select>
       </div>
       <div class="pop-section">
@@ -144,6 +145,14 @@
           <button class="pri-btn" data-p="low">🟢 低</button>
           <button class="pri-btn" data-p="">なし</button>
         </div>
+      </div>
+      <div class="pop-section">
+        <div class="pop-label">👤 担当</div>
+        <div class="assignee-presets">
+          <button class="assignee-preset-btn" data-v="自分">自分</button>
+          <button class="assignee-preset-btn" data-v="">未設定</button>
+        </div>
+        <input type="text" id="pop-assignee" class="pop-assignee-input" placeholder="担当者名を入力…">
       </div>
     </div>
     <div class="pop-section">
@@ -193,6 +202,21 @@
     </div>
   </div>
 
-  <script src="/static/mindmap.js?v=7"></script>
+  <!-- ステータス管理モーダル -->
+  <div id="status-modal-overlay" class="hidden">
+    <div id="status-modal">
+      <div id="status-modal-header">
+        <span class="status-modal-title">⚙ ステータス管理</span>
+        <button id="status-modal-close" title="閉じる">✕</button>
+      </div>
+      <div id="status-modal-body">
+        <p class="status-modal-hint">↑↓で並び替え、ラベルを編集できます。「完了扱い」にチェックすると完了フィルターに含まれます。</p>
+        <div id="status-item-list"></div>
+        <button id="btn-add-status" class="btn-add-status">＋ ステータスを追加</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/mindmap.js?v=8"></script>
 </body>
 </html>

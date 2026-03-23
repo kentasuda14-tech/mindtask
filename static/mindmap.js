@@ -25,23 +25,29 @@ const State = {
   mapLayout: 'tree', // 'tree' | 'radial'
   quickFilter: '',   // '' | 'today' | 'tomorrow' | 'week'
   noteItemId: null,
+  statusConfig: [],  // カスタムステータス設定
 };
 
 // ===== 定数 =====
 
-const STATUS_LABELS = {
-  todo:        '未着手',
-  in_progress: '進行中',
-  on_hold:     '保留',
-  consulting:  '要相談',
-  done:        '完了',
-  someday:     'いつかやる',
-  cancelled:   'キャンセル',
-};
+const DEFAULT_STATUS_CONFIG = [
+  { key: 'todo',        label: '未着手',     bg: '#F1F5F9', fg: '#475569', isDone: false },
+  { key: 'in_progress', label: '進行中',     bg: '#EFF6FF', fg: '#1D4ED8', isDone: false },
+  { key: 'on_hold',     label: '保留',       bg: '#FFFBEB', fg: '#92400E', isDone: false },
+  { key: 'consulting',  label: '要相談',     bg: '#F5F3FF', fg: '#6D28D9', isDone: false },
+  { key: 'done',        label: '完了',       bg: '#F0FDF4', fg: '#166534', isDone: true  },
+  { key: 'someday',     label: 'いつかやる', bg: '#F8FAFC', fg: '#64748B', isDone: false },
+  { key: 'cancelled',   label: 'キャンセル', bg: '#FFF5F5', fg: '#991B1B', isDone: true  },
+];
 
-const STATUS_ORDER = {
-  in_progress: 0, todo: 1, on_hold: 2, consulting: 3, someday: 4, done: 5, cancelled: 6,
-};
+const NEW_STATUS_COLORS = [
+  { bg: '#FFF7ED', fg: '#9A3412' },
+  { bg: '#FDF4FF', fg: '#7E22CE' },
+  { bg: '#ECFEFF', fg: '#155E75' },
+  { bg: '#FEFCE8', fg: '#A16207' },
+  { bg: '#FFF1F2', fg: '#BE123C' },
+  { bg: '#F0FDF4', fg: '#15803D' },
+];
 
 // ===== UTILS =====
 
@@ -65,6 +71,65 @@ function scheduleSave() {
   State._saveTimer = setTimeout(saveCurrentDoc, 2000);
 }
 
+// ===== ステータス設定ヘルパー =====
+
+function loadStatusConfig() {
+  try {
+    const s = localStorage.getItem('mindtask_status_config');
+    State.statusConfig = s ? JSON.parse(s) : [];
+  } catch(e) { State.statusConfig = []; }
+  if (!State.statusConfig.length)
+    State.statusConfig = DEFAULT_STATUS_CONFIG.map(s => ({...s}));
+}
+
+function saveStatusConfig() {
+  localStorage.setItem('mindtask_status_config', JSON.stringify(State.statusConfig));
+}
+
+function getStatusLabel(key) {
+  const s = State.statusConfig.find(s => s.key === key);
+  return s ? s.label : (key || '');
+}
+
+function getStatusBadgeStyle(key) {
+  const s = State.statusConfig.find(s => s.key === key);
+  return s ? `background:${s.bg};color:${s.fg}` : 'background:#F1F5F9;color:#475569';
+}
+
+function isStatusDone(key) {
+  const s = State.statusConfig.find(s => s.key === key);
+  return s ? !!s.isDone : (key === 'done' || key === 'cancelled');
+}
+
+function getStatusOrder(key) {
+  const idx = State.statusConfig.findIndex(s => s.key === key);
+  return idx === -1 ? 99 : idx;
+}
+
+function syncStatusOptions() {
+  // pop-status の選択肢を動的生成
+  const popStatus = document.getElementById('pop-status');
+  if (popStatus) {
+    const cur = popStatus.value;
+    popStatus.innerHTML = State.statusConfig.map(s =>
+      `<option value="${esc(s.key)}">${esc(s.label)}</option>`
+    ).join('');
+    if (State.statusConfig.some(s => s.key === cur)) popStatus.value = cur;
+  }
+  // filter-status の選択肢を動的生成
+  const filterStatus = document.getElementById('filter-status');
+  if (filterStatus) {
+    const cur = filterStatus.value;
+    filterStatus.innerHTML =
+      `<option value="active">未完了のみ</option>` +
+      `<option value="">全て</option>` +
+      State.statusConfig.map(s =>
+        `<option value="${esc(s.key)}">${esc(s.label)}</option>`
+      ).join('');
+    filterStatus.value = cur;
+  }
+}
+
 // アイテムのステータスを正規化（後方互換）
 function normalizeStatus(item) {
   if (!item.isTask) return null;
@@ -83,7 +148,7 @@ function renderOutline(focusIdx, cursorPos) {
   container.innerHTML = State.items.map((item, idx) => {
     const isTask  = item.isTask;
     const status  = normalizeStatus(item);
-    const isDone  = isTask && (status === 'done' || status === 'cancelled');
+    const isDone  = isTask && isStatusDone(status);
     const isOverdue = isTask && !isDone && item.deadline && item.deadline < today;
     const indentW = item.level * INDENT_PX;
     const markerColorClass = item.markerColor ? `marker-${item.markerColor}` : '';
@@ -103,8 +168,11 @@ function renderOutline(focusIdx, cursorPos) {
       ? `<span class="pri-dot pri-${item.priority}" title="${{high:'高',mid:'中',low:'低'}[item.priority]}"></span>` : '';
     const dlSpan = item.deadline
       ? `<span class="item-dl ${isOverdue ? 'overdue' : ''}">${item.deadline}</span>` : '';
-    const statusBadge = isTask && status && status !== 'todo'
-      ? `<span class="item-status-badge status-${status}">${STATUS_LABELS[status] || status}</span>` : '';
+    const defaultKey = State.statusConfig[0]?.key || 'todo';
+    const statusBadge = isTask && status && status !== defaultKey
+      ? `<span class="item-status-badge" style="${getStatusBadgeStyle(status)}">${getStatusLabel(status)}</span>` : '';
+    const assigneeBadge = item.assignee
+      ? `<span class="item-assignee-badge">👤 ${esc(item.assignee)}</span>` : '';
 
     // モバイル用インデントボタン
     const indentBtns = `
@@ -123,7 +191,7 @@ function renderOutline(focusIdx, cursorPos) {
         <input class="item-input ${isDone ? 'done-text' : ''}" type="text"
                value="${esc(item.text)}" data-idx="${idx}"
                placeholder="${item.level === 0 ? 'タイトル' : 'アイテムを入力…'}">
-        <div class="item-meta">${stampSpan}${statusBadge}${priDot}${dlSpan}</div>
+        <div class="item-meta">${stampSpan}${statusBadge}${assigneeBadge}${priDot}${dlSpan}</div>
         ${indentBtns}
         <button class="item-note-btn${hasNote ? ' has-note' : ''}" data-idx="${idx}" title="メモ・リンク">📝</button>
         <button class="item-props-btn" data-idx="${idx}" title="タスク設定・優先度・期限">•••</button>
@@ -289,8 +357,18 @@ function openPropsPopup(btnEl, idx) {
   const popup = document.getElementById('props-popup');
 
   document.getElementById('pop-is-task').checked = item.isTask;
-  document.getElementById('pop-status').value    = normalizeStatus(item) || 'todo';
+  // ステータス選択肢を動的生成
+  syncStatusOptions();
+  const curStatus = normalizeStatus(item) || (State.statusConfig[0]?.key || 'todo');
+  document.getElementById('pop-status').value = curStatus;
   document.getElementById('pop-deadline').value  = item.deadline || '';
+  // 担当フィールド
+  const popAssignee = document.getElementById('pop-assignee');
+  if (popAssignee) {
+    popAssignee.value = item.assignee || '';
+    document.querySelectorAll('.assignee-preset-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.v === (item.assignee || '')));
+  }
   document.querySelectorAll('.pri-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.p === (item.priority || '')));
   document.querySelectorAll('.marker-color-btn').forEach(b =>
@@ -330,7 +408,7 @@ function initPropsPopup() {
     if (State.propsIdx === null) return;
     const item = State.items[State.propsIdx];
     item.status = e.target.value;
-    item.done   = item.status === 'done';
+    item.done   = isStatusDone(item.status);
     renderOutline(State.propsIdx);
     scheduleMapUpdate(); scheduleSave();
     if (State.currentView === 'tasks') renderTaskList();
@@ -381,6 +459,33 @@ function initPropsPopup() {
     });
   });
 
+  // 担当プリセットボタン
+  document.querySelectorAll('.assignee-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (State.propsIdx === null) return;
+      const v = btn.dataset.v;
+      State.items[State.propsIdx].assignee = v;
+      document.getElementById('pop-assignee').value = v;
+      document.querySelectorAll('.assignee-preset-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.v === v));
+      renderOutline(State.propsIdx);
+      scheduleSave();
+      if (State.currentView === 'tasks') renderTaskList();
+    });
+  });
+
+  // 担当テキスト入力
+  document.getElementById('pop-assignee').addEventListener('input', e => {
+    if (State.propsIdx === null) return;
+    const v = e.target.value;
+    State.items[State.propsIdx].assignee = v;
+    document.querySelectorAll('.assignee-preset-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.v === v));
+    renderOutline(State.propsIdx);
+    scheduleSave();
+    if (State.currentView === 'tasks') renderTaskList();
+  });
+
   document.addEventListener('click', e => {
     if (!popup.classList.contains('hidden') &&
         !popup.contains(e.target) &&
@@ -396,10 +501,28 @@ function setTaskStatus(itemId, newStatus) {
   const item = State.items.find(i => i.id === itemId);
   if (!item) return;
   item.status = newStatus;
-  item.done   = newStatus === 'done';
+  item.done   = isStatusDone(newStatus);
   renderOutline();
   scheduleMapUpdate(); scheduleSave();
   renderTaskList();
+}
+
+function setTaskAssignee(itemId, assignee) {
+  const item = State.items.find(i => i.id === itemId);
+  if (!item) return;
+  item.assignee = (assignee || '').trim();
+  renderOutline();
+  scheduleSave();
+  if (State.currentView === 'tasks') renderTaskList();
+}
+
+function promptTaskAssignee(itemId) {
+  const item = State.items.find(i => i.id === itemId);
+  if (!item) return;
+  const cur = item.assignee || '';
+  const v = prompt('担当者名（空欄で未設定、「自分」で自分担当）:', cur);
+  if (v === null) return;
+  setTaskAssignee(itemId, v);
 }
 
 function setTaskPriority(itemId, newPriority) {
@@ -427,13 +550,13 @@ function toggleSortBy(sortKey) {
     State.taskSort = sortKey;
     State.taskSortDir = 'asc';
   }
+  const SORT_LABELS = { priority: '優先度', deadline: '期限', status: 'ステータス', assignee: '担当' };
   document.querySelectorAll('.sort-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.sort === sortKey);
     if (b.dataset.sort === sortKey) {
-      b.textContent = { priority: '優先度', deadline: '期限', status: 'ステータス' }[sortKey]
-        + (State.taskSortDir === 'asc' ? ' ↑' : ' ↓');
+      b.textContent = SORT_LABELS[sortKey] + (State.taskSortDir === 'asc' ? ' ↑' : ' ↓');
     } else {
-      b.textContent = { priority: '優先度', deadline: '期限', status: 'ステータス' }[b.dataset.sort];
+      b.textContent = SORT_LABELS[b.dataset.sort] || b.dataset.sort;
     }
   });
   renderTaskList();
@@ -468,7 +591,7 @@ function exportMarkdown() {
       const isDone  = status === 'done' || status === 'cancelled';
       const check   = isDone ? '[x]' : '[ ]';
       const meta    = [];
-      if (status && status !== 'todo')  meta.push(STATUS_LABELS[status]);
+      if (status && status !== (State.statusConfig[0]?.key || 'todo')) meta.push(getStatusLabel(status));
       if (item.priority)                meta.push(`優先度:${PRI_LABEL[item.priority]}`);
       if (item.deadline)                meta.push(`期限:${item.deadline}`);
       const metaStr = meta.length ? `  _(${meta.join(' / ')})_` : '';
@@ -497,7 +620,7 @@ function exportCSV() {
     }
     return [
       item.text,
-      STATUS_LABELS[status] || '',
+      getStatusLabel(status),
       PRI_LABEL[item.priority] || '',
       item.deadline || '',
       section,
@@ -593,7 +716,22 @@ function drawMap() {
     if (parent) {
       const path = svgEl('path');
       if (State.mapLayout === 'radial') {
-        path.setAttribute('d', `M${parent.x},${parent.y} L${node.x},${node.y}`);
+        const px = parent.x, py = parent.y;
+        const nx = node.x,   ny = node.y;
+        const pr = Math.hypot(px, py);
+        if (pr < 1) {
+          // ルートから: シンプルなベジェ
+          const dx = nx - px, dy = ny - py;
+          path.setAttribute('d', `M${px},${py} C${px+dx*0.35},${py+dy*0.35} ${px+dx*0.65},${py+dy*0.65} ${nx},${ny}`);
+        } else {
+          // 角度ベースの曲線エッジ（親の方向から子の方向へ円弧状に曲がる）
+          const pa = Math.atan2(py, px);
+          const na = Math.atan2(ny, nx);
+          const nr = Math.hypot(nx, ny);
+          const c1 = { x: Math.cos(pa) * (pr * 0.5 + nr * 0.5), y: Math.sin(pa) * (pr * 0.5 + nr * 0.5) };
+          const c2 = { x: Math.cos(na) * (pr * 0.4 + nr * 0.6), y: Math.sin(na) * (pr * 0.4 + nr * 0.6) };
+          path.setAttribute('d', `M${px},${py} C${c1.x},${c1.y} ${c2.x},${c2.y} ${nx},${ny}`);
+        }
       } else {
         const x1 = parent.x + NODE_W / 2, y1 = parent.y;
         const x2 = node.x - NODE_W / 2,   y2 = node.y;
@@ -792,7 +930,9 @@ function initPan() {
 
 // ===== 放射状レイアウト =====
 
-const RADIAL_STEP = 190;
+const RADIAL_BASE_R  = 230;  // depth=1 の基本半径
+const RADIAL_DEPTH_R = 210;  // 深さごとに加算する半径
+const MIN_NODE_ARC   = 175;  // ノード間の最小アーク長（ノード幅＋余白）
 
 function countLeaves(node) {
   if (!node.children.length) return 1;
@@ -800,20 +940,131 @@ function countLeaves(node) {
 }
 
 function layoutRadial(root) {
-  function place(node, cx, cy, a0, a1) {
+  function place(node, cx, cy, a0, a1, depth) {
     node.x = cx; node.y = cy;
     if (!node.children.length) return;
-    const total = node.children.reduce((s, c) => s + countLeaves(c), 0);
+    const totalLeaves = node.children.reduce((s, c) => s + countLeaves(c), 0);
+    const angleSpan   = a1 - a0;
+    // ノードが重ならない最小半径を計算
+    // arc = radius * (angleSpan / totalLeaves) >= MIN_NODE_ARC
+    const minRadius = (MIN_NODE_ARC * totalLeaves) / angleSpan;
+    const radius    = Math.max(RADIAL_BASE_R + (depth - 1) * RADIAL_DEPTH_R, minRadius);
     let angle = a0;
     for (const child of node.children) {
-      const span = (a1 - a0) * countLeaves(child) / total;
+      const span = angleSpan * countLeaves(child) / totalLeaves;
       const mid  = angle + span / 2;
-      place(child, cx + Math.cos(mid) * RADIAL_STEP, cy + Math.sin(mid) * RADIAL_STEP,
-            mid - span / 2, mid + span / 2);
+      place(child,
+        cx + Math.cos(mid) * radius,
+        cy + Math.sin(mid) * radius,
+        mid - span / 2, mid + span / 2, depth + 1);
       angle += span;
     }
   }
-  place(root, 0, 0, -Math.PI, Math.PI);
+  place(root, 0, 0, -Math.PI, Math.PI, 1);
+}
+
+// ===== ステータス管理モーダル =====
+
+function openStatusModal() {
+  syncStatusOptions();
+  renderStatusList();
+  document.getElementById('status-modal-overlay').classList.remove('hidden');
+}
+
+function closeStatusModal() {
+  document.getElementById('status-modal-overlay').classList.add('hidden');
+  syncStatusOptions();
+  renderOutline();
+  if (State.currentView === 'tasks') renderTaskList();
+}
+
+function renderStatusList() {
+  const container = document.getElementById('status-item-list');
+  container.innerHTML = State.statusConfig.map((s, i) => `
+    <div class="status-item" data-idx="${i}">
+      <div class="status-item-left">
+        <span class="status-item-sample" style="background:${s.bg};color:${s.fg}">${esc(s.label)}</span>
+        <input type="text" class="status-item-label" value="${esc(s.label)}" data-idx="${i}" placeholder="ラベル名">
+        <label class="status-item-done-label" title="完了扱いにするとフィルターの「未完了のみ」から除外されます">
+          <input type="checkbox" class="status-item-done" data-idx="${i}" ${s.isDone ? 'checked' : ''}>
+          <span>完了扱い</span>
+        </label>
+      </div>
+      <div class="status-item-right">
+        <button class="status-order-btn" data-idx="${i}" data-dir="up" ${i === 0 ? 'disabled' : ''} title="上へ">↑</button>
+        <button class="status-order-btn" data-idx="${i}" data-dir="down" ${i === State.statusConfig.length - 1 ? 'disabled' : ''} title="下へ">↓</button>
+        <button class="status-delete-btn" data-idx="${i}" title="削除">✕</button>
+      </div>
+    </div>`).join('');
+
+  container.querySelectorAll('.status-item-label').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const idx = parseInt(e.target.dataset.idx);
+      State.statusConfig[idx].label = e.target.value;
+      const sample = e.target.closest('.status-item').querySelector('.status-item-sample');
+      if (sample) sample.textContent = e.target.value;
+      saveStatusConfig();
+    });
+  });
+
+  container.querySelectorAll('.status-item-done').forEach(cb => {
+    cb.addEventListener('change', e => {
+      const idx = parseInt(e.target.dataset.idx);
+      State.statusConfig[idx].isDone = e.target.checked;
+      saveStatusConfig();
+    });
+  });
+
+  container.querySelectorAll('.status-order-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      const dir = btn.dataset.dir;
+      if (dir === 'up' && idx > 0) {
+        [State.statusConfig[idx], State.statusConfig[idx-1]] =
+          [State.statusConfig[idx-1], State.statusConfig[idx]];
+      } else if (dir === 'down' && idx < State.statusConfig.length - 1) {
+        [State.statusConfig[idx], State.statusConfig[idx+1]] =
+          [State.statusConfig[idx+1], State.statusConfig[idx]];
+      }
+      saveStatusConfig();
+      renderStatusList();
+    });
+  });
+
+  container.querySelectorAll('.status-delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      if (State.statusConfig.length <= 1) return;
+      State.statusConfig.splice(idx, 1);
+      saveStatusConfig();
+      renderStatusList();
+    });
+  });
+}
+
+function initStatusModal() {
+  document.getElementById('status-modal-close').addEventListener('click', closeStatusModal);
+  document.getElementById('status-modal-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('status-modal-overlay')) closeStatusModal();
+  });
+  document.getElementById('btn-add-status').addEventListener('click', () => {
+    const colorIdx = State.statusConfig.length % NEW_STATUS_COLORS.length;
+    const color = NEW_STATUS_COLORS[colorIdx];
+    State.statusConfig.push({
+      key: `custom_${Date.now()}`,
+      label: '新しいステータス',
+      bg: color.bg,
+      fg: color.fg,
+      isDone: false,
+    });
+    saveStatusConfig();
+    renderStatusList();
+    requestAnimationFrame(() => {
+      const inputs = document.querySelectorAll('.status-item-label');
+      if (inputs.length) { inputs[inputs.length - 1].focus(); inputs[inputs.length - 1].select(); }
+    });
+  });
+  document.getElementById('btn-status-settings').addEventListener('click', openStatusModal);
 }
 
 function toggleMapLayout() {
@@ -1108,16 +1359,23 @@ function renderTaskList() {
 
   // ステータスフィルター
   if (filterStatus === 'active') {
-    tasks = tasks.filter(t => {
-      const s = normalizeStatus(t);
-      return s !== 'done' && s !== 'cancelled';
-    });
+    tasks = tasks.filter(t => !isStatusDone(normalizeStatus(t)));
   } else if (filterStatus) {
     tasks = tasks.filter(t => normalizeStatus(t) === filterStatus);
   }
 
   // 優先度フィルター
   if (filterPri) tasks = tasks.filter(t => t.priority === filterPri);
+
+  // 担当フィルター
+  const filterAssignee = document.getElementById('filter-assignee').value;
+  if (filterAssignee === 'self') {
+    tasks = tasks.filter(t => t.assignee === '自分');
+  } else if (filterAssignee === 'delegated') {
+    tasks = tasks.filter(t => t.assignee && t.assignee !== '自分');
+  } else if (filterAssignee === 'none') {
+    tasks = tasks.filter(t => !t.assignee);
+  }
 
   // セクション名
   tasks = tasks.map(item => {
@@ -1146,9 +1404,9 @@ function renderTaskList() {
       if (a.deadline && b.deadline) cmp = a.deadline.localeCompare(b.deadline);
       else cmp = a.deadline ? -1 : b.deadline ? 1 : 0;
     } else if (State.taskSort === 'status') {
-      const sa = STATUS_ORDER[normalizeStatus(a)] ?? 7;
-      const sb = STATUS_ORDER[normalizeStatus(b)] ?? 7;
-      cmp = sa - sb;
+      cmp = getStatusOrder(normalizeStatus(a)) - getStatusOrder(normalizeStatus(b));
+    } else if (State.taskSort === 'assignee') {
+      cmp = (a.assignee || '').localeCompare(b.assignee || '');
     }
     return State.taskSortDir === 'desc' ? -cmp : cmp;
   });
@@ -1158,24 +1416,25 @@ function renderTaskList() {
     return;
   }
 
-  const statusOptions = Object.entries(STATUS_LABELS)
-    .map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
-
   container.innerHTML = tasks.map(t => {
     const status  = normalizeStatus(t);
-    const overdue = status !== 'done' && status !== 'cancelled' && t.deadline && t.deadline < today;
-    const isDone  = status === 'done' || status === 'cancelled';
+    const overdue = !isStatusDone(status) && t.deadline && t.deadline < today;
+    const isDone  = isStatusDone(status);
     const markerColorClass = t.markerColor ? `marker-${t.markerColor}` : '';
     const stampEl = t.markerStamp ? `<span class="task-stamp">${t.markerStamp}</span>` : '';
     const hasTaskNote = !!(t.note || (t.links && t.links.length > 0));
     const taskNoteBtn = `<button class="task-note-btn${hasTaskNote ? ' has-note' : ''}" data-id="${t.id}" onclick="openNoteDrawer('${t.id}'); event.stopPropagation();" title="メモ・リンク">📝</button>`;
+    const assigneeEl = t.assignee
+      ? `<span class="task-assignee-badge" onclick="promptTaskAssignee('${t.id}'); event.stopPropagation();" title="担当を変更">👤 ${esc(t.assignee)}</span>`
+      : `<button class="task-assignee-add" onclick="promptTaskAssignee('${t.id}'); event.stopPropagation();">＋ 担当</button>`;
 
     const statusSel = `
-      <select class="task-status-sel status-sel-${status}"
+      <select class="task-status-sel"
+              style="${getStatusBadgeStyle(status)}"
               onchange="setTaskStatus('${t.id}', this.value)"
               onclick="event.stopPropagation()">
-        ${Object.entries(STATUS_LABELS).map(([v, l]) =>
-          `<option value="${v}" ${status === v ? 'selected' : ''}>${l}</option>`
+        ${State.statusConfig.map(s =>
+          `<option value="${esc(s.key)}" ${status === s.key ? 'selected' : ''}>${esc(s.label)}</option>`
         ).join('')}
       </select>`;
 
@@ -1203,6 +1462,7 @@ function renderTaskList() {
                 onclick="focusItemById('${t.id}')">${esc(t.text)}</span>
         </div>
         <div class="task-row-right">
+          ${assigneeEl}
           ${taskNoteBtn}
           ${priSel}
           ${dlInput}
@@ -1234,6 +1494,7 @@ function initViewToggle() {
 
   document.getElementById('filter-status').addEventListener('change', renderTaskList);
   document.getElementById('filter-priority').addEventListener('change', renderTaskList);
+  document.getElementById('filter-assignee').addEventListener('change', renderTaskList);
 
   document.querySelectorAll('.sort-btn').forEach(btn => {
     btn.addEventListener('click', () => toggleSortBy(btn.dataset.sort));
@@ -1425,6 +1686,8 @@ async function loadDoc(docId) {
     // note/links マイグレーション
     if (item.note === undefined) item.note = '';
     if (!item.links) item.links = [];
+    // assignee マイグレーション
+    if (item.assignee === undefined) item.assignee = '';
   });
 
   document.getElementById('doc-select').value = docId;
@@ -1475,6 +1738,8 @@ async function createNewDoc() {
 // ===== 初期化 =====
 
 document.addEventListener('DOMContentLoaded', () => {
+  loadStatusConfig();
+  syncStatusOptions();
   loadDocList();
 
   document.getElementById('doc-select').addEventListener('change', e => loadDoc(e.target.value));
@@ -1502,4 +1767,5 @@ document.addEventListener('DOMContentLoaded', () => {
   initResizableDivider();
   initMobileTabs();
   initViewToggle();
+  initStatusModal();
 });
