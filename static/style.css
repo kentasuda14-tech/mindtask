@@ -524,7 +524,8 @@ html, body {
   transition: border-color 0.15s;
 }
 .task-row:hover { border-color: #93C5FD; }
-.task-row.is-overdue { border-left: 3px solid #EF4444; }
+.task-row.is-overdue { border-left: 4px solid #EF4444; background: #FFF5F5; }
+.task-row.is-overdue:hover { border-color: #DC2626; }
 .task-row.is-done { opacity: 0.6; }
 
 .task-row-left {
@@ -794,6 +795,9 @@ html, body {
 }
 .quick-filter-btn:hover { border-color: #93C5FD; color: #1D4ED8; }
 .quick-filter-btn.active { background: #3B82F6; color: white; border-color: #3B82F6; font-weight: 600; }
+.overdue-filter-btn { border-color: #FECACA; color: #991B1B; background: #FFF5F5; }
+.overdue-filter-btn:hover { border-color: #EF4444; color: #991B1B; background: #FEE2E2; }
+.overdue-filter-btn.active { background: #EF4444; color: white; border-color: #EF4444; }
 
 /* ===== ノートドロワー ===== */
 #note-drawer {
@@ -1355,4 +1359,155 @@ html, body {
   #note-drawer.open { transform: translateY(0); }
   .item-note-btn { opacity: 0.3; }
   .task-note-btn { opacity: 0.4; }
+}
+
+/* ===== サブビュートグル（リスト/カレンダー） ===== */
+.subview-toggle {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  background: #F1F5F9;
+  border-radius: 7px;
+  padding: 2px;
+}
+
+.subview-btn {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #64748B;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.subview-btn:hover { color: #1E293B; }
+.subview-btn.active { background: white; color: #1E293B; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+/* ===== カレンダービュー ===== */
+#calendar-view {
+  padding: 0 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+#calendar-view.hidden { display: none; }
+
+#calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 10px 0 4px;
+}
+
+.cal-nav-btn {
+  padding: 4px 12px;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  background: white;
+  color: #475569;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cal-nav-btn:hover { border-color: #93C5FD; color: #1D4ED8; background: #EFF6FF; }
+
+#cal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1E293B;
+  min-width: 120px;
+  text-align: center;
+}
+
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.cal-wday {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94A3B8;
+  padding: 4px 0;
+}
+.cal-wday.sun { color: #EF4444; }
+.cal-wday.sat { color: #3B82F6; }
+
+.cal-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.cal-cell {
+  min-height: 80px;
+  background: white;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 4px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.cal-cell:hover { border-color: #93C5FD; }
+.cal-cell.cal-empty { background: #F8FAFC; border-color: transparent; }
+.cal-cell.cal-today { border-color: #3B82F6; border-width: 2px; }
+.cal-cell.cal-today .cal-day-num { color: #3B82F6; font-weight: 700; }
+.cal-cell.cal-sun .cal-day-num { color: #EF4444; }
+.cal-cell.cal-sat .cal-day-num { color: #3B82F6; }
+.cal-cell.cal-overdue-day { background: #FFF5F5; border-color: #FECACA; }
+
+.cal-day-num {
+  font-size: 11px;
+  color: #94A3B8;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.cal-day-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cal-task-chip {
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 0.15s;
+  line-height: 1.4;
+}
+.cal-task-chip:hover { opacity: 0.8; }
+.cal-chip-done { background: #F0FDF4; color: #166534; text-decoration: line-through; opacity: 0.7; }
+.cal-chip-overdue { background: #FFF1F2; color: #BE123C; font-weight: 600; }
+
+#calendar-no-deadline {
+  background: white;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.cal-no-dl-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748B;
+  margin-bottom: 8px;
+}
+
+#calendar-no-deadline-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }

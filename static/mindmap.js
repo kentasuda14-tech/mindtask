@@ -18,8 +18,11 @@ const State = {
   _vRoot: null,
   _mapTimer: null,
   _saveTimer: null,
-  taskSort: 'priority',
+  taskSort: 'deadline',
   taskSortDir: 'asc',
+  taskSubView: 'list',
+  calendarYear: new Date().getFullYear(),
+  calendarMonth: new Date().getMonth(),
   hideCompleted: false,
   scale: 1,
   quickFilter: '',   // '' | 'today' | 'tomorrow' | 'week'
@@ -228,8 +231,8 @@ function initOutlineEditor() {
       item.text = val.slice(0, cur);
       const newItem = {
         id: genId(), text: val.slice(cur), level: item.level,
-        isTask: false, done: false, status: null, deadline: null, priority: null,
-        markerColor: null, markerStamp: null, note: '', links: [],
+        isTask: true, done: false, status: State.statusConfig[0]?.key || 'todo', deadline: null, priority: null,
+        markerColor: null, markerStamp: null, note: '', links: [], assignee: '',
       };
       State.items.splice(idx + 1, 0, newItem);
       renderOutline(idx + 1, 0);
@@ -339,8 +342,8 @@ function initOutlineEditor() {
     const last = State.items[State.items.length - 1];
     const newItem = {
       id: genId(), text: '', level: last ? last.level : 0,
-      isTask: false, done: false, status: null, deadline: null, priority: null,
-      markerColor: null, markerStamp: null,
+      isTask: true, done: false, status: State.statusConfig[0]?.key || 'todo', deadline: null, priority: null,
+      markerColor: null, markerStamp: null, note: '', links: [], assignee: '',
     };
     State.items.push(newItem);
     renderOutline(State.items.length - 1);
@@ -1322,6 +1325,8 @@ function renderTaskList() {
     tasks = tasks.filter(t => t.deadline && t.deadline <= tomorrowStr);
   } else if (State.quickFilter === 'week') {
     tasks = tasks.filter(t => t.deadline && t.deadline <= weekEndStr);
+  } else if (State.quickFilter === 'overdue') {
+    tasks = tasks.filter(t => !isStatusDone(normalizeStatus(t)) && t.deadline && t.deadline < todayStr);
   }
 
   // ステータスフィルター
@@ -1439,6 +1444,110 @@ function renderTaskList() {
   }).join('');
 }
 
+// ===== カレンダービュー =====
+
+function renderCalendarView() {
+  const year  = State.calendarYear;
+  const month = State.calendarMonth;
+  const today = new Date().toISOString().slice(0, 10);
+  const filterStatus   = document.getElementById('filter-status').value;
+  const filterPri      = document.getElementById('filter-priority').value;
+  const filterAssignee = document.getElementById('filter-assignee').value;
+
+  // タスクを取得（フィルター適用）
+  let tasks = State.items
+    .map((item, idx) => ({ ...item, _origIdx: idx }))
+    .filter(item => item.isTask);
+  if (filterStatus === 'active') {
+    tasks = tasks.filter(t => !isStatusDone(normalizeStatus(t)));
+  } else if (filterStatus) {
+    tasks = tasks.filter(t => normalizeStatus(t) === filterStatus);
+  }
+  if (filterPri) tasks = tasks.filter(t => t.priority === filterPri);
+  if (filterAssignee === 'self') tasks = tasks.filter(t => t.assignee === '自分');
+  else if (filterAssignee === 'delegated') tasks = tasks.filter(t => t.assignee && t.assignee !== '自分');
+  else if (filterAssignee === 'none') tasks = tasks.filter(t => !t.assignee);
+
+  // タイトル
+  document.getElementById('cal-title').textContent =
+    `${year}年 ${month + 1}月`;
+
+  // カレンダーグリッド生成
+  const firstDay = new Date(year, month, 1).getDay(); // 0=日
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const grid = document.getElementById('calendar-grid');
+
+  const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+  let html = '<div class="cal-weekdays">' +
+    weekdays.map((d, i) => `<div class="cal-wday ${i===0?'sun':i===6?'sat':''}">${d}</div>`).join('') +
+    '</div><div class="cal-days">';
+
+  // 前月の空白セル
+  for (let i = 0; i < firstDay; i++) {
+    html += '<div class="cal-cell cal-empty"></div>';
+  }
+
+  // 日付セル
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = (firstDay + d - 1) % 7;
+    const isToday = dateStr === today;
+    const isPast  = dateStr < today;
+    const dayTasks = tasks.filter(t => t.deadline === dateStr);
+    const hasOverdue = dayTasks.some(t => !isStatusDone(normalizeStatus(t)));
+
+    let cellClass = 'cal-cell';
+    if (isToday)  cellClass += ' cal-today';
+    if (dow === 0) cellClass += ' cal-sun';
+    if (dow === 6) cellClass += ' cal-sat';
+    if (isPast && !isToday && hasOverdue) cellClass += ' cal-overdue-day';
+
+    const taskItems = dayTasks.map(t => {
+      const status = normalizeStatus(t);
+      const isDone = isStatusDone(status);
+      const overdue = !isDone && t.deadline && t.deadline < today;
+      return `<div class="cal-task-chip ${isDone?'cal-chip-done':''} ${overdue?'cal-chip-overdue':''}"
+                   onclick="focusItemById('${t.id}')" title="${esc(t.text)}">
+        ${esc(t.text.length > 14 ? t.text.slice(0,13)+'…' : t.text)}
+      </div>`;
+    }).join('');
+
+    html += `<div class="${cellClass}">
+      <div class="cal-day-num">${d}</div>
+      <div class="cal-day-tasks">${taskItems}</div>
+    </div>`;
+  }
+  html += '</div>';
+  grid.innerHTML = html;
+
+  // 期限なしタスク
+  const noDlTasks = tasks.filter(t => !t.deadline);
+  const noDlList = document.getElementById('calendar-no-deadline-list');
+  if (noDlTasks.length) {
+    document.getElementById('calendar-no-deadline').style.display = '';
+    noDlList.innerHTML = noDlTasks.map(t => {
+      const status = normalizeStatus(t);
+      const isDone = isStatusDone(status);
+      return `<div class="cal-task-chip ${isDone?'cal-chip-done':''}"
+                   onclick="focusItemById('${t.id}')" title="${esc(t.text)}">
+        ${esc(t.text.length > 20 ? t.text.slice(0,19)+'…' : t.text)}
+      </div>`;
+    }).join('');
+  } else {
+    document.getElementById('calendar-no-deadline').style.display = 'none';
+  }
+}
+
+function switchTaskSubView(sv) {
+  State.taskSubView = sv;
+  document.querySelectorAll('.subview-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.sv === sv));
+  document.getElementById('task-list-container').classList.toggle('hidden', sv === 'calendar');
+  document.getElementById('calendar-view').classList.toggle('hidden', sv === 'list');
+  if (sv === 'list') renderTaskList();
+  else renderCalendarView();
+}
+
 // ===== マップ / タスク 切り替え =====
 
 function initViewToggle() {
@@ -1456,12 +1565,19 @@ function initViewToggle() {
     document.getElementById('map-view').classList.add('hidden');
     document.getElementById('btn-view-tasks').classList.add('active');
     document.getElementById('btn-view-map').classList.remove('active');
-    renderTaskList();
+    if (State.taskSubView === 'list') renderTaskList();
+    else renderCalendarView();
   });
 
-  document.getElementById('filter-status').addEventListener('change', renderTaskList);
-  document.getElementById('filter-priority').addEventListener('change', renderTaskList);
-  document.getElementById('filter-assignee').addEventListener('change', renderTaskList);
+  document.getElementById('filter-status').addEventListener('change', () => {
+    if (State.taskSubView === 'list') renderTaskList(); else renderCalendarView();
+  });
+  document.getElementById('filter-priority').addEventListener('change', () => {
+    if (State.taskSubView === 'list') renderTaskList(); else renderCalendarView();
+  });
+  document.getElementById('filter-assignee').addEventListener('change', () => {
+    if (State.taskSubView === 'list') renderTaskList(); else renderCalendarView();
+  });
 
   document.querySelectorAll('.sort-btn').forEach(btn => {
     btn.addEventListener('click', () => toggleSortBy(btn.dataset.sort));
@@ -1472,8 +1588,25 @@ function initViewToggle() {
       State.quickFilter = btn.dataset.filter;
       document.querySelectorAll('.quick-filter-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.filter === State.quickFilter));
-      renderTaskList();
+      if (State.taskSubView === 'list') renderTaskList(); else renderCalendarView();
     });
+  });
+
+  // サブビュートグル
+  document.querySelectorAll('.subview-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTaskSubView(btn.dataset.sv));
+  });
+
+  // カレンダーナビ
+  document.getElementById('cal-prev').addEventListener('click', () => {
+    State.calendarMonth--;
+    if (State.calendarMonth < 0) { State.calendarMonth = 11; State.calendarYear--; }
+    renderCalendarView();
+  });
+  document.getElementById('cal-next').addEventListener('click', () => {
+    State.calendarMonth++;
+    if (State.calendarMonth > 11) { State.calendarMonth = 0; State.calendarYear++; }
+    renderCalendarView();
   });
 }
 

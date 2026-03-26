@@ -78,6 +78,7 @@
             <button class="quick-filter-btn" data-filter="today">今日</button>
             <button class="quick-filter-btn" data-filter="tomorrow">今日・明日</button>
             <button class="quick-filter-btn" data-filter="week">今週中</button>
+            <button class="quick-filter-btn overdue-filter-btn" data-filter="overdue">⚠ 期限切れ</button>
           </div>
           <div class="filter-row">
             <select id="filter-status">
@@ -99,20 +100,37 @@
             </select>
             <select id="filter-assignee">
               <option value="">全担当</option>
-              <option value="self">自分</option>
+              <option value="self" selected>自分</option>
               <option value="delegated">依頼中</option>
               <option value="none">未設定</option>
             </select>
           </div>
           <div class="sort-controls">
             <span class="sort-label">並べ替え:</span>
-            <button class="sort-btn active" data-sort="priority">優先度</button>
-            <button class="sort-btn" data-sort="deadline">期限</button>
+            <button class="sort-btn" data-sort="priority">優先度</button>
+            <button class="sort-btn active" data-sort="deadline">期限 ↑</button>
             <button class="sort-btn" data-sort="status">ステータス</button>
             <button class="sort-btn" data-sort="assignee">担当</button>
+            <div class="subview-toggle">
+              <button class="subview-btn active" data-sv="list">☰ リスト</button>
+              <button class="subview-btn" data-sv="calendar">📅 カレンダー</button>
+            </div>
           </div>
         </div>
         <div id="task-list-container"></div>
+        <!-- カレンダービュー -->
+        <div id="calendar-view" class="hidden">
+          <div id="calendar-nav">
+            <button id="cal-prev" class="cal-nav-btn">◀</button>
+            <span id="cal-title"></span>
+            <button id="cal-next" class="cal-nav-btn">▶</button>
+          </div>
+          <div id="calendar-grid"></div>
+          <div id="calendar-no-deadline">
+            <div class="cal-no-dl-title">📌 期限なし</div>
+            <div id="calendar-no-deadline-list"></div>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -216,6 +234,6 @@
     </div>
   </div>
 
-  <script src="/static/mindmap.js?v=8"></script>
+  <script src="/static/mindmap.js?v=9"></script>
 </body>
 </html>
