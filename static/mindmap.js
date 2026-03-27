@@ -232,7 +232,7 @@ function initOutlineEditor() {
       const newItem = {
         id: genId(), text: val.slice(cur), level: item.level,
         isTask: true, done: false, status: State.statusConfig[0]?.key || 'todo', deadline: null, priority: null,
-        markerColor: null, markerStamp: null, note: '', links: [], assignee: '',
+        markerColor: null, markerStamp: null, note: '', links: [], assignee: '自分',
       };
       State.items.splice(idx + 1, 0, newItem);
       renderOutline(idx + 1, 0);
@@ -343,7 +343,7 @@ function initOutlineEditor() {
     const newItem = {
       id: genId(), text: '', level: last ? last.level : 0,
       isTask: true, done: false, status: State.statusConfig[0]?.key || 'todo', deadline: null, priority: null,
-      markerColor: null, markerStamp: null, note: '', links: [], assignee: '',
+      markerColor: null, markerStamp: null, note: '', links: [], assignee: '自分',
     };
     State.items.push(newItem);
     renderOutline(State.items.length - 1);
